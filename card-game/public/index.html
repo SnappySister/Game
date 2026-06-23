@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>双人卡牌对战</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <div id="top-bar">
+    <div id="status">等待连接...</div>
+    <button id="rule-btn" class="rule-btn">📜 规则介绍</button>
+  </div>
+
+  <!-- 对手区 -->
+  <div id="enemy-area" class="player-area">
+    <div class="avatar">😈</div>
+    <div class="info">
+      <div class="name">?</div>
+      <div class="hp-bar"><div class="hp-inner" style="width:100%"></div></div>
+      <div class="stats">
+        HP <span class="hp-val">100/100</span> |
+        盾 <span class="shield-val">0</span> |
+        毒 <span class="poison-val">0</span> |
+        烧 <span class="burn-val">0</span>
+        <span class="doom-tag" style="display:none"> 倒数<span class="doom-val">0</span><span class="doom-stacks"></span></span>
+        <span class="frozen-tag" style="display:none"> ❄冻</span>
+        <span class="immune-tag" style="display:none"> 🛡免疫</span>
+      </div>
+      <div class="mana-bar"><span class="mana-crystals"></span></div>
+    </div>
+    <div class="hand-count">手牌: ?</div>
+  </div>
+
+  <!-- 对战日志 -->
+  <div id="battle-log" class="log-box"></div>
+
+  <!-- 我方区 -->
+  <div id="my-area" class="player-area">
+    <div class="avatar">🧙</div>
+    <div class="info">
+      <div class="name">我</div>
+      <div class="hp-bar"><div class="hp-inner" style="width:100%"></div></div>
+      <div class="stats">
+        HP <span class="hp-val">100/100</span> |
+        盾 <span class="shield-val">0</span> |
+        毒 <span class="poison-val">0</span> |
+        烧 <span class="burn-val">0</span>
+        <span class="doom-tag" style="display:none"> 倒数<span class="doom-val">0</span><span class="doom-stacks"></span></span>
+        <span class="frozen-tag" style="display:none"> ❄冻</span>
+        <span class="immune-tag" style="display:none"> 🛡免疫</span>
+      </div>
+      <div class="mana-bar"><span class="mana-crystals"></span></div>
+    </div>
+    <button id="end-turn-btn" class="end-turn" disabled>结束回合</button>
+  </div>
+
+  <!-- 手牌区 -->
+  <div id="hand" class="hand"></div>
+
+  <!-- 规则弹窗 -->
+  <div id="rule-modal" class="modal" style="display:none">
+    <div class="modal-box rule-box">
+      <h2>游戏规则</h2>
+      <div class="rule-content">
+        <p><b>胜利目标：</b>将对手 HP 降至 0。</p>
+        <p><b>回合制：</b>双方轮流行动。在自己的回合可以出任意张牌，只要水晶足够。</p>
+        <p><b>水晶：</b>每回合上限 +1（最高10），回合开始时水晶回满。</p>
+        <p><b>后手补偿：</b>后手玩家开局额外获得一张【水晶硬币】（0费，使用后本回合水晶+1，不计入手牌上限）。</p>
+        <p><b>抽牌：</b>开局各抽 4 张，之后每回合抽 3 张。</p>
+        <p><b>手牌上限：</b>非硬币手牌数不能超过当前水晶上限，硬币不计入。回合结束时若超出，必须弃牌至不超过。</p>
+        <p><b>结束回合：</b>可随时点击按钮让对手行动。若手牌数超过当前水晶数，必须先弃牌。</p>
+        <br>
+        <p><b>卡牌效果一览：</b></p>
+        <p><b style="color:#e74c3c">⚔ 伤害</b>：扣除对手生命，先扣护盾再扣HP。</p>
+        <p><b style="color:#2ecc71">❤ 治疗</b>：恢复自身生命。</p>
+        <p><b style="color:#3498db">🛡 护盾</b>：获得护盾，抵挡后续伤害。</p>
+        <p><b style="color:#f1c40f">🛡 格挡</b>：下回合完全免疫所有伤害（连护盾都不消耗），持续一回合。</p>
+        <p><b>☠ 毒雾</b>：造成8点伤害并叠 <b>2层</b> 中毒。</p>
+        <p><b>🔥 烈焰</b>：造成6点伤害并叠 <b>3层</b> 灼烧。</p>
+        <p><b>💀 诅咒</b>：对手直接叠 <b>5层</b> 中毒（不造成伤害）。</p>
+        <p><b>❄ 冰封</b>：冻结对手一整回合。冻结期间只能打出<b>净化</b>，其他卡牌无法使用。</p>
+        <p><b>⏳ 死亡宣告</b>：令对手进入 <b>5回合</b> 倒计时，倒计时归零时强制扣 <b>25血</b>。可用<b>净化</b>解除。</p>
+        <p><b>✨ 净化</b>：清除自身<b>所有</b>负面效果（中毒+灼烧+冻结+死亡倒计时），并<b>恢复3点生命</b>。</p>
+        <p><b>👋 顺手牵羊</b>：随机偷对手一张手牌（偷到的也可能是硬币）。</p>
+        <p><b>💀 献祭</b>：自己强制扣 <b>8</b> 血（无法避免），对手扣 <b>15</b> 血。对手有免疫时不受伤害。</p>
+        <p><b>💥 自爆卡车</b>：双方各受 <b>25</b> 点真实伤害（无视护盾），有免疫时也可免除。</p>
+        <p><b>🎲 混沌</b>：随机触发伤害/治疗/护盾之一，数值为牌面值。</p>
+        <p><b>🃏 奥术智慧</b>：抽2张牌。</p>
+        <p><b>⚔ 疾风斩</b>：造成8伤并抽1张牌。</p>
+        <p><b>💰 水晶硬币</b>：0费，使用后本回合水晶+1。不计入手牌上限，弃牌时不需要弃它。</p>
+        <br>
+        <p><b>负面效果机制：</b></p>
+        <p><b>中毒</b>：每回合结束扣除当前层数HP，不会自动消失。</p>
+        <p><b>灼烧</b>：每回合结束扣除当前层数HP，且<b>灼烧期间无法回血</b>（净化除外）。</p>
+        <p><b>冻结</b>：该回合<b>无法使用任何卡牌</b>，除非打出<b>净化</b>立即解除。冰冻持续一回合后自动融化。</p>
+        <p><b>死亡倒计时</b>：每回合结束倒计时-1，归零时强制扣25血。不会自动消失，可用<b>净化</b>解除。</p>
+        <p><b>净化</b>可一键清除以上<b>所有</b>负面效果。</p>
+      </div>
+      <button id="close-rule">知道了</button>
+    </div>
+  </div>
+
+  <!-- 结算弹窗 -->
+  <div id="game-over" class="modal" style="display:none">
+    <div class="modal-box">
+      <h2 id="winner-text"></h2>
+      <button onclick="location.reload()">再来一局</button>
+    </div>
+  </div>
+</div>
+<script>
+const ws = new WebSocket('ws://' + location.host);
+let myIndex = -1;
+let myHand = [];
+let state = null;
+let discardMode = false;
+let discardTarget = 0;
+let selectedToDiscard = [];
+
+function $(s) { return document.querySelector(s); }
+
+ws.onopen = () => { $('#status').textContent = '已连接，等待对手...'; };
+
+ws.onmessage = (e) => {
+  const d = JSON.parse(e.data);
+  if (d.event === 'joined') { myIndex = d.index; $('#status').textContent = '你加入了: ' + d.name; }
+  if (d.event === 'lobby') { $('#status').textContent = '当前人数: ' + d.count + '/2'; }
+  if (d.state) { state = d.state; renderState(d.state); }
+  if (d.myHand != null) { myHand = d.myHand; renderHand(); }
+  if (d.event === 'need_discard') { enterDiscardMode(d.count); }
+  if (d.event === 'frozen') { $('#status').textContent = '❄ 你被冰冻了！只能打出【净化】'; }
+  if (d.event === 'over') { showOver(d.winner); }
+};
+
+function renderState(s) {
+  const me = s.players[myIndex];
+  const enemy = s.players[1 - myIndex];
+  updateArea('my-area', me);
+  updateArea('enemy-area', enemy);
+
+  const log = $('#battle-log');
+  log.innerHTML = s.logs.map(l => '<div>' + l + '</div>').join('');
+  log.scrollTop = log.scrollHeight;
+
+  const btn = $('#end-turn-btn');
+  if (discardMode) {
+    btn.disabled = selectedToDiscard.length !== discardTarget;
+    btn.textContent = `确认弃牌 (${selectedToDiscard.length}/${discardTarget})`;
+    btn.classList.add('active');
+    return;
+  }
+  if (me && me.isCurrent) {
+    btn.disabled = false;
+    const frozenMark = me.frozen ? ' ❄冻' : '';
+    btn.textContent = '结束回合 (剩余 ' + me.mana + '/' + me.maxMana + ' | 上限: ' + me.maxMana + ')' + frozenMark;
+    btn.classList.add('active');
+  } else {
+    btn.disabled = true;
+    btn.textContent = '对手回合';
+    btn.classList.remove('active');
+  }
+}
+
+function updateArea(id, p) {
+  if (!p) return;
+  const el = $('#' + id);
+  el.querySelector('.name').textContent = p.name;
+  el.querySelector('.hp-val').textContent = p.hp + '/' + p.maxHp;
+  el.querySelector('.shield-val').textContent = p.shield;
+  el.querySelector('.poison-val').textContent = p.poison;
+  el.querySelector('.burn-val').textContent = p.burn;
+  el.querySelector('.hp-inner').style.width = (p.hp / p.maxHp * 100) + '%';
+
+  const immuneTag = el.querySelector('.immune-tag');
+  if (immuneTag) immuneTag.style.display = p.immune ? 'inline' : 'none';
+
+  const frozenTag = el.querySelector('.frozen-tag');
+  if (frozenTag) frozenTag.style.display = p.frozen ? 'inline' : 'none';
+
+  const doomTag = el.querySelector('.doom-tag');
+  if (doomTag) doomTag.style.display = p.doom > 0 || p.doomStacks > 0 ? 'inline' : 'none';
+  const doomVal = el.querySelector('.doom-val');
+  if (doomVal) doomVal.textContent = p.doom > 0 ? p.doom : '0';
+  const doomStacks = el.querySelector('.doom-stacks');
+  if (doomStacks) doomStacks.textContent = p.doomStacks > 1 ? '×' + p.doomStacks : '';
+
+  el.classList.toggle('current-turn', p.isCurrent);
+  renderMana(el.querySelector('.mana-crystals'), p.mana, p.maxMana);
+  if (id === 'enemy-area') el.querySelector('.hand-count').textContent = '手牌: ' + p.handSize;
+}
+
+function renderMana(el, current, max) {
+  let html = '';
+  for (let i = 0; i < max; i++) html += '<span class="crystal ' + (i < current ? 'filled' : 'empty') + '"></span>';
+  el.innerHTML = html;
+}
+
+function renderHand() {
+  const box = $('#hand');
+  box.innerHTML = '';
+  const me = state && state.players[myIndex];
+  const myMana = me ? me.mana : 0;
+  const isMyTurn = me && me.isCurrent;
+  const isFrozen = me && me.frozen;
+
+  myHand.forEach(c => {
+    // 冰冻时只有净化牌能出
+    const playable = isMyTurn && !discardMode && c.cost <= myMana && (!isFrozen || c.type === 'cleanse');
+    const selected = discardMode && selectedToDiscard.includes(c.uuid);
+    const card = document.createElement('div');
+    card.className = 'card' + (playable ? '' : ' disabled') + (selected ? ' selected' : '');
+    card.style.setProperty('--accent', c.color);
+
+    const isCoin = c.type === 'coin';
+    const topHtml = isCoin
+      ? `<div class="card-top"><span class="card-cost coin-cost">0</span><span class="card-value coin-value">+${c.value}</span></div>`
+      : `<div class="card-top"><span class="card-cost">${c.cost}</span><span class="card-value">${c.value}</span></div>`;
+
+    card.innerHTML = `
+      <div class="card-inner">
+        ${topHtml}
+        <div class="card-name">${c.name}</div>
+        <div class="card-type">${typeLabel(c.type)}</div>
+        <div class="card-desc">${c.desc}</div>
+      </div>
+    `;
+    card.onclick = () => {
+      if (discardMode) {
+        if (c.type === 'coin') return;
+        const idx = selectedToDiscard.indexOf(c.uuid);
+        if (idx !== -1) selectedToDiscard.splice(idx, 1);
+        else if (selectedToDiscard.length < discardTarget) selectedToDiscard.push(c.uuid);
+        renderHand();
+        const btn = $('#end-turn-btn');
+        btn.disabled = selectedToDiscard.length !== discardTarget;
+        btn.textContent = `确认弃牌 (${selectedToDiscard.length}/${discardTarget})`;
+        return;
+      }
+      if (!playable) return;
+      ws.send(JSON.stringify({ type: 'play', uuid: c.uuid }));
+    };
+    box.appendChild(card);
+  });
+}
+
+function enterDiscardMode(count) {
+  discardMode = true;
+  discardTarget = count;
+  selectedToDiscard = [];
+  renderHand();
+  const btn = $('#end-turn-btn');
+  btn.disabled = true;
+  btn.textContent = `确认弃牌 (0/${count})`;
+  btn.classList.add('active', 'discard-btn');
+  const me = state && state.players[myIndex];
+  if (me) {
+    $('#status').textContent = `手牌过多！请弃掉 ${count} 张牌（上限 ${me.maxMana} 张）`;
+  }
+}
+
+function exitDiscardMode() {
+  discardMode = false;
+  discardTarget = 0;
+  selectedToDiscard = [];
+  $('#end-turn-btn').classList.remove('discard-btn');
+  $('#status').textContent = '';
+  if (state) renderState(state);
+  renderHand();
+}
+
+function typeLabel(t) {
+  const m = {
+    damage:'⚔ 伤害', heal:'❤ 治疗', shield:'🛡 护盾', vampiric:'🧛 吸血',
+    poison:'☠ 毒雾', chaos:'🎲 混沌', draw:'🃏 抽牌', draw_dmg:'⚔ 伤害+抽牌',
+    sacrifice:'💀 献祭', suicide:'💥 自爆', block:'🛡 格挡',
+    steal:'👋 偷牌', cleanse:'✨ 净化', coin:'💰 硬币',
+    combust:'🔥 灼烧', curse:'💀 诅咒', freeze:'❄ 冰封', doom:'⏳ 死亡宣告'
+  };
+  return m[t] || t;
+}
+
+function showOver(winner) {
+  $('#game-over').style.display = 'flex';
+  const myName = $('#my-area .name').textContent;
+  $('#winner-text').textContent = winner === myName ? '你赢了！' : (winner + ' 获胜');
+}
+
+$('#end-turn-btn').onclick = () => {
+  if (discardMode) {
+    if (selectedToDiscard.length === discardTarget) {
+      ws.send(JSON.stringify({ type: 'discard', uuids: selectedToDiscard }));
+      exitDiscardMode();
+    }
+    return;
+  }
+  ws.send(JSON.stringify({ type: 'endTurn' }));
+};
+
+$('#rule-btn').onclick = () => { $('#rule-modal').style.display = 'flex'; };
+$('#close-rule').onclick = () => { $('#rule-modal').style.display = 'none'; };
+$('#rule-modal').onclick = (e) => { if (e.target === $('#rule-modal')) $('#rule-modal').style.display = 'none'; };
+</script>
+</body>
+</html>
