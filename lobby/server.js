@@ -98,7 +98,8 @@ function buildRoomState(room) {
     for (const [, u] of users) if (u.id === uid) return { name: u.name, id: u.id };
     return { name: '?', id: uid };
   });
-  return { event: 'roomState', id: room.id, name: room.name, players: pNames, spectators: sNames, status: room.status, chat: room.chat.slice(-30) };
+  const allReady = room.players.length > 0 && room.players.every(uid => room.ready.has(uid));
+  return { event: 'roomState', id: room.id, name: room.name, players: pNames, spectators: sNames, status: room.status, chat: room.chat.slice(-30), ready: [...room.ready], allReady, ownerId: room.ownerId };
 }
 
 function addChat(scope, roomId, name, text) {
@@ -172,7 +173,8 @@ wss.on('connection', (ws) => {
         id: rid, gameType: game.id, name,
         players: [user.id], spectators: [],
         status: 'waiting', chat: [], gameInstance: null,
-        maxPlayers: game.maxPlayers, ownerId: user.id
+        maxPlayers: game.maxPlayers, ownerId: user.id,
+        ready: new Set()
       };
       rooms.set(rid, room);
       user.state = 'room';
@@ -268,12 +270,24 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    /* ---------- 准备/取消准备 ---------- */
+    if (msg.type === 'toggleReady') {
+      const room = rooms.get(user.roomId);
+      if (!room) { send(ws, { event: 'error', msg: '不在房间中' }); return; }
+      if (!room.players.includes(user.id)) { send(ws, { event: 'error', msg: '你不是玩家' }); return; }
+      if (room.ready.has(user.id)) room.ready.delete(user.id);
+      else room.ready.add(user.id);
+      broadcastRoom(room.id, buildRoomState(room));
+      return;
+    }
+
     /* ---------- 开始游戏 ---------- */
     if (msg.type === 'startGame') {
       const room = rooms.get(user.roomId);
       if (!room || room.ownerId !== user.id) { send(ws, { event: 'error', msg: '无权开始' }); return; }
       if (room.status !== 'waiting') { send(ws, { event: 'error', msg: '游戏已开始' }); return; }
       if (room.players.length < room.maxPlayers) { send(ws, { event: 'error', msg: '人数不足' }); return; }
+      if (!room.players.every(uid => room.ready.has(uid))) { send(ws, { event: 'error', msg: '并非所有玩家都已准备' }); return; }
 
       room.status = 'playing';
       const players = room.players.map((uid, i) => {
@@ -301,16 +315,17 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    /* ---------- 再来一局 ---------- */
-    if (msg.type === 'rematch') {
+    /* ---------- 返回房间（原再来一局） ---------- */
+    if (msg.type === 'backToRoom') {
       const room = rooms.get(user.roomId);
-      if (!room || room.ownerId !== user.id) { send(ws, { event: 'error', msg: '无权操作' }); return; }
+      if (!room) { send(ws, { event: 'error', msg: '房间不存在' }); return; }
       if (room.status !== 'playing' || !room.gameInstance || !room.gameInstance.ended) {
         send(ws, { event: 'error', msg: '游戏未结束' }); return;
       }
-      // 重置游戏
+      // 重置房间状态
       room.gameInstance = null;
       room.status = 'waiting';
+      room.ready.clear();
       room.players.forEach(uid => {
         for (const [, u] of users) { if (u.id === uid) u.gameIndex = -1; }
       });
@@ -346,6 +361,7 @@ function leaveRoomInternal(userId) {
       if (!room) { u.roomId = null; return; }
       room.players = room.players.filter(id => id !== userId);
       room.spectators = room.spectators.filter(id => id !== userId);
+      room.ready.delete(userId);
       if (room.players.length === 0 && room.spectators.length === 0) {
       room.chat = [];
       rooms.delete(room.id);

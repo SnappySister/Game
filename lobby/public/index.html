@@ -52,6 +52,7 @@
   <div class="room-header">
     <button id="btn-leave-room">离开房间</button>
     <h2 id="room-title">房间</h2>
+    <button id="btn-ready" style="display:none">准备</button>
     <button id="btn-start-game" style="display:none">开始游戏</button>
   </div>
   <div class="room-body">
@@ -171,7 +172,6 @@
 <div id="game-over-modal" class="modal" style="display:none">
   <div class="modal-box">
     <h2 id="winner-text"></h2>
-    <button id="btn-rematch" style="display:none">再来一局</button>
     <button id="btn-back-room">返回房间</button>
   </div>
 </div>
@@ -305,17 +305,23 @@ function handleMessage(d) {
   if (d.event === 'roomState') {
     currentRoomId = d.id;
     $('#room-title').textContent = d.name;
-    $('#room-player-list').innerHTML = d.players.map(p => `<div class="room-player ${p.name===myName?'me':''}">${p.name} ${p.id===d.players[0]?.id?'(房主)':''}</div>`).join('');
+    $('#room-player-list').innerHTML = d.players.map(p => {
+      const readyMark = d.ready.includes(p.id) ? ' ✅' : '';
+      return `<div class="room-player ${p.name===myName?'me':''}">${p.name} ${p.id===d.players[0]?.id?'(房主)':''}${readyMark}</div>`;
+    }).join('');
     $('#room-spectator-list').innerHTML = d.spectators.map(s => `<div>${s.name}</div>`).join('') || '<div class="empty">暂无</div>';
     // 开始按钮显示
     const isOwner = d.players[0] && d.players[0].name === myName;
+    const isPlayer = d.players.some(p => p.name === myName);
     $('#btn-start-game').style.display = isOwner && d.status === 'waiting' ? 'inline-block' : 'none';
-    if (currentView !== 'game') showView('#view-room');
+    $('#btn-start-game').disabled = !d.allReady;
+    $('#btn-ready').style.display = isPlayer && d.status === 'waiting' ? 'inline-block' : 'none';
+    $('#btn-ready').textContent = d.ready.includes(d.players.find(p => p.name === myName)?.id) ? '取消准备' : '准备';
+    if (d.status === 'waiting') showView('#view-room');
   }
   if (d.event === 'gameStarted') {
     showView('#view-game');
     isSpectator = false;
-    $('#btn-rematch').style.display = 'none';
     $('#btn-leave-game').style.display = 'inline-block';
   }
   if (d.event === 'chat' || d.event === 'chatHistory') {
@@ -341,8 +347,6 @@ function handleMessage(d) {
     $('#game-over-modal').style.display = 'flex';
     const myAreaName = $('#my-area .name').textContent;
     $('#winner-text').textContent = d.winner === myAreaName ? '你赢了！' : (d.winner + ' 获胜');
-    // 判断是否是房主，显示再来一局
-    if (!isSpectator) $('#btn-rematch').style.display = 'inline-block';
   }
   if (d.event === 'error') {
     alert(d.msg);
@@ -437,8 +441,8 @@ $('#btn-start-game').onclick = () => {
 $('#btn-game-rule').onclick = () => { $('#game-rule-modal').style.display = 'flex'; };
 $('#close-rule').onclick = () => { $('#game-rule-modal').style.display = 'none'; };
 $('#btn-leave-game').onclick = () => { send({ type: 'leaveRoom' }); showView('#view-lobby'); };
-$('#btn-back-room').onclick = () => { $('#game-over-modal').style.display = 'none'; showView('#view-room'); };
-$('#btn-rematch').onclick = () => { $('#game-over-modal').style.display = 'none'; send({ type: 'rematch' }); };
+$('#btn-back-room').onclick = () => { $('#game-over-modal').style.display = 'none'; send({ type: 'backToRoom' }); };
+$('#btn-ready').onclick = () => { send({ type: 'toggleReady' }); };
 $('#btn-game-chat').onclick = () => { $('#chat-panel').style.display = $('#chat-panel').style.display === 'none' ? 'flex' : 'none'; };
 
 /* ==================== 聊天面板操作 ==================== */
