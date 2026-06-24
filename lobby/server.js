@@ -319,6 +319,11 @@ wss.on('connection', (ws) => {
     if (msg.type === 'backToRoom') {
       const room = rooms.get(user.roomId);
       if (!room) { send(ws, { event: 'error', msg: '房间不存在' }); return; }
+      // 如果房间已经重置，直接返回状态
+      if (room.status === 'waiting' && !room.gameInstance) {
+        send(ws, buildRoomState(room));
+        return;
+      }
       if (room.status !== 'playing' || !room.gameInstance || !room.gameInstance.ended) {
         send(ws, { event: 'error', msg: '游戏未结束' }); return;
       }

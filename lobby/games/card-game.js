@@ -4,11 +4,11 @@ const CARDS = [
   { id: 'fireball',  name: '火球术',   type: 'damage',    value: 6,  cost: 1, color: '#e74c3c', desc: '造成6点伤害' },
   { id: 'heal',      name: '治疗术',   type: 'heal',      value: 6,  cost: 1, color: '#2ecc71', desc: '恢复6点生命' },
   { id: 'shield',    name: '圣盾',     type: 'shield',    value: 6,  cost: 1, color: '#3498db', desc: '获得6点护盾' },
-  { id: 'thunder',   name: '雷击',     type: 'damage',    value: 15, cost: 6, color: '#9b59b6', desc: '造成15点伤害' },
+  { id: 'thunder',   name: '雷击',     type: 'damage',    value: 20, cost: 6, color: '#9b59b6', desc: '造成20点伤害' },
   { id: 'vampiric',  name: '吸血',     type: 'vampiric',  value: 12, cost: 5, color: '#c0392b', desc: '造成12伤并回6血' },
   { id: 'chaos',     name: '混沌',     type: 'chaos',     value: 6,  cost: 2, color: '#f39c12', desc: '随机效果(伤害、治疗、护盾、净化、中毒、灼烧、冰冻)' },
-  { id: 'poison',    name: '毒雾',     type: 'poison',    value: 8,  cost: 3, color: '#27ae60', desc: '造成8伤并中毒' },
-  { id: 'barrier',   name: '铁壁',     type: 'shield',    value: 15, cost: 6, color: '#2980b9', desc: '获得15点护盾' },
+  { id: 'poison',    name: '毒雾',     type: 'poison',    value: 8,  cost: 3, color: '#27ae60', desc: '造成8伤并中毒3层' },
+  { id: 'barrier',   name: '铁壁',     type: 'shield',    value: 20, cost: 6, color: '#2980b9', desc: '获得20点护盾' },
   { id: 'arcane',    name: '奥术智慧', type: 'draw',      value: 2,  cost: 3, color: '#1abc9c', desc: '抽2张牌' },
   { id: 'sprint',    name: '疾风斩',   type: 'draw_dmg',  value: 8,  cost: 3, color: '#e67e22', desc: '造成8伤并抽1' },
   { id: 'sacrifice', name: '献祭',     type: 'sacrifice', value: 15, cost: 4, color: '#8e44ad', desc: '自扣8血，对手扣15' },
@@ -196,7 +196,7 @@ class CardGameEngine {
       heal:     () => { if (user.burn > 0) extra = { healBlocked: true }; else user.hp = Math.min(user.maxHp, user.hp + v); },
       shield:   () => { user.shield += v; },
       vampiric: () => { target.hp = Math.max(0, target.hp - this._effectiveDamage(target, v)); if (user.burn > 0) extra = { healBlocked: true }; else user.hp = Math.min(user.maxHp, user.hp + Math.floor(v / 2)); },
-      poison:   () => { target.hp = Math.max(0, target.hp - this._effectiveDamage(target, v)); if (target.negImmune) extra = { negBlocked: true }; else target.poison += 2; },
+      poison:   () => { target.hp = Math.max(0, target.hp - this._effectiveDamage(target, v)); if (target.negImmune) extra = { negBlocked: true }; else target.poison += 3; },
       combust:  () => { target.hp = Math.max(0, target.hp - this._effectiveDamage(target, 6)); if (target.negImmune) extra = { negBlocked: true }; else { target.burn += v; target.burnTurn = 3; } },
       curse:    () => { if (target.negImmune) extra = { negBlocked: true }; else target.poison += v; },
       freeze:   () => { if (target.negImmune) extra = { negBlocked: true }; else target.frozen = true; },
@@ -240,16 +240,16 @@ class CardGameEngine {
 
   _applyStatusEffects(pp) {
     let parts = [];
-    if (pp.poison && pp.hp > 0) { pp.hp = Math.max(0, pp.hp - pp.poison); parts.push(`${pp.poison}中毒`); }
+    if (pp.poison && pp.hp > 0) { pp.hp = Math.max(0, pp.hp - this._effectiveDamage(pp, pp.poison)); parts.push(`${pp.poison}中毒`); }
     if (pp.burn && pp.hp > 0)   {
-      pp.hp = Math.max(0, pp.hp - pp.burn);
+      pp.hp = Math.max(0, pp.hp - this._effectiveDamage(pp, pp.burn));
       pp.burnTurn--;
       if (pp.burnTurn <= 0) { pp.burn = 0; parts.push(`灼烧熄灭`); }
       else parts.push(`灼烧${pp.burn}(${pp.burnTurn})`);
     }
     if (pp.doom > 0) {
       pp.doom--;
-      if (pp.doom === 0) { const dmg = 15 * (pp.doomStacks || 1); pp.hp = Math.max(0, pp.hp - dmg); parts.push(`死亡倒计时爆发(${dmg})`); pp.doomStacks = 0; }
+      if (pp.doom === 0) { const dmg = 15 * (pp.doomStacks || 1); pp.hp = Math.max(0, pp.hp - this._effectiveDamage(pp, dmg)); parts.push(`死亡倒计时爆发(${dmg})`); pp.doomStacks = 0; }
       else parts.push(`死亡倒计时${pp.doom}` + (pp.doomStacks > 1 ? `×${pp.doomStacks}` : ''));
     }
     if (parts.length > 0) { this.logs.push(`${pp.name} 受到 ${parts.join(' + ')}`); return true; }
