@@ -11,14 +11,14 @@ const CARDS = [
   { id: 'barrier',   name: '铁壁',     type: 'shield',    value: 20, cost: 6, color: '#2980b9', desc: '获得20点护盾' },
   { id: 'arcane',    name: '奥术智慧', type: 'draw',      value: 2,  cost: 3, color: '#1abc9c', desc: '抽2张牌' },
   { id: 'sprint',    name: '疾风斩',   type: 'draw_dmg',  value: 8,  cost: 3, color: '#e67e22', desc: '造成8伤并抽1' },
-  { id: 'sacrifice', name: '献祭',     type: 'sacrifice', value: 15, cost: 4, color: '#8e44ad', desc: '自扣8血，对手扣15' },
+  { id: 'sacrifice', name: '献祭',     type: 'sacrifice', value: 15, cost: 4, color: '#8e44ad', desc: '自扣8血，对手扣15真伤' },
   { id: 'suicide',   name: '自爆卡车', type: 'suicide',   value: 25, cost: 7, color: '#c0392b', desc: '双方各受25真伤' },
   { id: 'block',     name: '格挡',     type: 'block',     value: 0,  cost: 4, color: '#f1c40f', desc: '免疫下回合所有伤害' },
   { id: 'steal',     name: '顺手牵羊', type: 'steal',     value: 0,  cost: 2, color: '#2c3e50', desc: '随机偷对手1张牌' },
   { id: 'combust',   name: '烈焰',     type: 'combust',   value: 3,  cost: 5, color: '#e67e22', desc: '造成6伤并灼烧3层' },
   { id: 'curse',     name: '诅咒',     type: 'curse',     value: 5,  cost: 5, color: '#8e44ad', desc: '对手叠5层中毒' },
   { id: 'freeze',    name: '冰封',     type: 'freeze',    value: 0,  cost: 4, color: '#00bcd4', desc: '冻结对手1回合' },
-  { id: 'doom',      name: '死亡宣告', type: 'doom',      value: 3,  cost: 5, color: '#607d8b', desc: '3回合后扣15血' },
+  { id: 'doom',      name: '死亡宣告', type: 'doom',      value: 3,  cost: 5, color: '#607d8b', desc: '3回合后扣20血' },
   { id: 'ward',      name: '护罩',     type: 'ward',      value: 0,  cost: 3, color: '#f1c40f', desc: '下回合免疫负面效果' },
   { id: 'cleanse',   name: '净化',     type: 'cleanse',   value: 3,  cost: 4, color: '#ecf0f1', desc: '清负面+回3血' }
 ];
@@ -214,7 +214,7 @@ class CardGameEngine {
           const b = user.burn > 0; user.poison = 0; user.burn = 0; user.frozen = false; user.doom = 0; user.doomStacks = 0; user.burnTurn = 0;
           if (!b) user.hp = Math.min(user.maxHp, user.hp + 3); extra = { ...extra, cleansed: h };
         }
-        if (pick === 'poison') { if (target.negImmune) extra = { ...extra, negBlocked: true }; else target.poison += 2; }
+        if (pick === 'poison') { if (target.negImmune) extra = { ...extra, negBlocked: true }; else target.poison += 3; }
         if (pick === 'burn') { if (target.negImmune) extra = { ...extra, negBlocked: true }; else { target.burn += 3; target.burnTurn = 3; } }
         if (pick === 'freeze') { if (target.negImmune) extra = { ...extra, negBlocked: true }; else target.frozen = true; }
         extra = { ...extra, chaosEffect: pick };
@@ -240,6 +240,14 @@ class CardGameEngine {
 
   _applyStatusEffects(pp) {
     let parts = [];
+    if (pp.immune) {
+      let blocked = [];
+      if (pp.poison && pp.hp > 0) blocked.push('中毒');
+      if (pp.burn && pp.hp > 0)   { blocked.push('灼烧'); pp.burnTurn--; if (pp.burnTurn <= 0) pp.burn = 0; }
+      if (pp.doom > 0)            { blocked.push('死亡宣告'); pp.doom--; if (pp.doom === 0) pp.doomStacks = 0; }
+      if (blocked.length > 0) { this.logs.push(`${pp.name} 的格挡免疫了${blocked.join('、')}伤害`); return true; }
+      return false;
+    }
     if (pp.poison && pp.hp > 0) { pp.hp = Math.max(0, pp.hp - this._effectiveDamage(pp, pp.poison)); parts.push(`${pp.poison}中毒`); }
     if (pp.burn && pp.hp > 0)   {
       pp.hp = Math.max(0, pp.hp - this._effectiveDamage(pp, pp.burn));
@@ -249,7 +257,7 @@ class CardGameEngine {
     }
     if (pp.doom > 0) {
       pp.doom--;
-      if (pp.doom === 0) { const dmg = 15 * (pp.doomStacks || 1); pp.hp = Math.max(0, pp.hp - this._effectiveDamage(pp, dmg)); parts.push(`死亡倒计时爆发(${dmg})`); pp.doomStacks = 0; }
+      if (pp.doom === 0) { const dmg = 20 * (pp.doomStacks || 1); pp.hp = Math.max(0, pp.hp - this._effectiveDamage(pp, dmg)); parts.push(`死亡倒计时爆发(${dmg})`); pp.doomStacks = 0; }
       else parts.push(`死亡倒计时${pp.doom}` + (pp.doomStacks > 1 ? `×${pp.doomStacks}` : ''));
     }
     if (parts.length > 0) { this.logs.push(`${pp.name} 受到 ${parts.join(' + ')}`); return true; }
