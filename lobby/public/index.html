@@ -200,11 +200,63 @@
   </div>
 </div>
 
+<div id="view-poker" class="view" style="display:none">
+  <div id="poker-top-bar">
+    <div id="poker-status">等待连接...</div>
+    <div class="poker-top-btns">
+      <button id="btn-poker-rule">📜 规则</button>
+      <button id="btn-poker-chat">💬 聊天</button>
+      <button id="btn-end-poker" style="display:none">⏹ 结束对局</button>
+      <button id="btn-leave-poker">退出</button>
+    </div>
+  </div>
+  <div id="poker-table">
+    <div id="poker-opponents"></div>
+    <div id="poker-center">
+      <div id="poker-pot-box">
+        <div>底池: <span id="poker-pot-val">0</span></div>
+        <div>当前注: <span id="poker-bet-val">0</span></div>
+      </div>
+      <div id="poker-community"></div>
+    </div>
+    <div id="poker-self-area">
+      <div id="poker-self-info"></div>
+      <div id="poker-self-cards"></div>
+    </div>
+  </div>
+  <div id="poker-log" class="log-box"></div>
+  <div id="poker-actions"></div>
+  <div id="poker-rule-modal" class="modal" style="display:none">
+    <div class="modal-box rule-box">
+      <h2>德州扑克规则</h2>
+      <div class="rule-content">
+        <p><b>游戏目标：</b>通过押注策略和牌型大小赢取对手筹码。</p>
+        <p><b>人数：</b>2-6人。</p>
+        <p><b>筹码：</b>每人初始1000筹码。</p>
+        <p><b>盲注：</b>小盲10，大盲20。每局庄家顺时针轮换。</p>
+        <p><b>发牌：</b>每人2张底牌（仅自己可见），公共牌分三轮发出：翻牌3张、转牌1张、河牌1张。</p>
+        <p><b>下注轮：</b>Preflop（底牌后）→ Flop（翻牌后）→ Turn（转牌后）→ River（河牌后）。</p>
+        <p><b>操作说明：</b></p>
+        <p><b>弃牌(Fold)</b>：放弃本局，不再参与。</p>
+        <p><b>过牌(Check)</b>：当前无人加注时，选择不下注。</p>
+        <p><b>跟注(Call)</b>：跟随当前最高注额。</p>
+        <p><b>加注(Raise)</b>：提高注额，至少增加一个大盲（20）。</p>
+        <p><b>全下(All In)</b>：押出所有剩余筹码。</p>
+        <p><b>比牌：</b>未弃牌玩家用2张底牌+5张公牌选出最大的5张组合比大小。</p>
+        <p><b>牌型大小：</b>同花顺 &gt; 四条 &gt; 葫芦 &gt; 同花 &gt; 顺子 &gt; 三条 &gt; 两对 &gt; 一对 &gt; 高牌。</p>
+      </div>
+      <button id="close-poker-rule">知道了</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ==================== 全局 ==================== */
 let ws = null, myName = '', currentView = 'login', currentRoomId = null, currentGameType = '';
 let myHand = [], gameState = null, myGameIndex = 0, isSpectator = false;
 let discardMode = false, discardTarget = 0, selectedToDiscard = [];
+let pokerState = null, myPokerHand = [], isRoomOwner = false;
+let hasRequestedNextRound = false;
 let chatScope = 'lobby';
 let chatMessages = { lobby: [], room: [] };
 let unread = { lobby: 0, room: 0 };
@@ -236,6 +288,16 @@ function showView(id) {
     $('#tab-lobby').classList.remove('active');
   }
   else if (id === '#view-game') {
+    $('#chat-panel').style.display = 'flex';
+    $('#chat-toggle-btn').style.display = 'none';
+    isPanelOpen = true;
+    $('#tab-lobby').style.display = 'inline-block';
+    $('#tab-room').style.display = 'inline-block';
+    setChatScope('room');
+    $('#tab-room').classList.add('active');
+    $('#tab-lobby').classList.remove('active');
+  }
+  else if (id === '#view-poker') {
     $('#chat-panel').style.display = 'flex';
     $('#chat-toggle-btn').style.display = 'none';
     isPanelOpen = true;
@@ -284,11 +346,19 @@ function handleMessage(d) {
         ${g.available ? '<button class="btn-enter-game">进入</button>' : ''}
       </div>
     `).join('');
-    document.querySelectorAll('.game-card[data-id="card"] .btn-enter-game').forEach(b => {
-      b.onclick = () => { currentGameType = 'card'; send({ type: 'enterGameList', gameType: 'card' }); showView('#view-roomList'); };
+    document.querySelectorAll('.game-card .btn-enter-game').forEach(b => {
+      b.onclick = (e) => {
+        const card = e.target.closest('.game-card');
+        if (!card) return;
+        currentGameType = card.dataset.id;
+        send({ type: 'enterGameList', gameType: currentGameType });
+        showView('#view-roomList');
+      };
     });
   }
   if (d.event === 'roomList') {
+    const titles = { card: '卡牌对战', poker: '德州扑克' };
+    $('#roomlist-title').textContent = titles[d.gameType] || '游戏房间';
     const c = $('#roomlist-container');
     if (d.rooms.length === 0) { c.innerHTML = '<div class="roomlist-empty">暂无房间，点击上方创建</div>'; }
     else {
@@ -320,6 +390,7 @@ function handleMessage(d) {
     $('#room-spectator-list').innerHTML = d.spectators.map(s => `<div>${s.name}</div>`).join('') || '<div class="empty">暂无</div>';
     // 开始按钮显示
     const isOwner = d.players[0] && d.players[0].name === myName;
+    isRoomOwner = isOwner;
     const isPlayer = d.players.some(p => p.name === myName);
     $('#btn-start-game').style.display = isOwner && d.status === 'waiting' ? 'inline-block' : 'none';
     $('#btn-start-game').disabled = !d.allReady;
@@ -328,9 +399,13 @@ function handleMessage(d) {
     if (d.status === 'waiting') showView('#view-room');
   }
   if (d.event === 'gameStarted') {
-    showView('#view-game');
+    const gType = d.gameType || currentGameType;
+    if (gType === 'poker') {
+      showView('#view-poker');
+    } else {
+      showView('#view-game');
+    }
     isSpectator = false;
-    $('#btn-leave-game').style.display = 'inline-block';
   }
   if (d.event === 'chat' || d.event === 'chatHistory') {
     addChatMessage(d);
@@ -338,12 +413,30 @@ function handleMessage(d) {
 
   /* ===== 游戏内消息 ===== */
   if (d.event === 'update' || d.event === 'start') {
-    gameState = d.state;
-    renderGameState(d.state);
+    if (currentGameType === 'poker') {
+      pokerState = d.state;
+      // 新局开始（preflop）时重置继续标志
+      if (d.state && d.state.phase === 'preflop') {
+        hasRequestedNextRound = false;
+      }
+      renderPokerState(d.state);
+    } else {
+      gameState = d.state;
+      renderGameState(d.state);
+    }
   }
   if (d.myHand != null) {
-    myHand = d.myHand; myGameIndex = d.myIndex; isSpectator = !!d.spectator;
-    renderHand();
+    if (currentGameType === 'poker') {
+      myPokerHand = d.myHand; myGameIndex = d.myIndex; isSpectator = !!d.spectator;
+      renderPokerHand();
+      // myHand 到达后 myGameIndex 才被正确设置，需要重新渲染 UI
+      if (pokerState) {
+        renderPokerState(pokerState);
+      }
+    } else {
+      myHand = d.myHand; myGameIndex = d.myIndex; isSpectator = !!d.spectator;
+      renderHand();
+    }
   }
   if (d.event === 'need_discard') {
     enterDiscardMode(d.count);
@@ -352,9 +445,30 @@ function handleMessage(d) {
     $('#game-status').textContent = '❄ 你被冰冻了！只能打出【净化】';
   }
   if (d.event === 'over') {
-    $('#game-over-modal').style.display = 'flex';
-    const myAreaName = $('#my-area .name').textContent;
-    $('#winner-text').textContent = d.winner === myAreaName ? '你赢了！' : (d.winner + ' 获胜');
+    if (currentGameType === 'poker') {
+      // 扑克：在操作区显示"继续下一局"按钮或等待提示
+      const box = $('#poker-actions');
+      if (box && !isSpectator) {
+        if (hasRequestedNextRound) {
+          box.innerHTML = '<div class="poker-waiting">已确认，等待其他玩家...</div>';
+        } else {
+          box.innerHTML = '<button class="poker-btn" style="background:#27ae60" onclick="sendNextRound()">继续下一局</button>';
+        }
+      }
+    } else {
+      $('#game-over-modal').style.display = 'flex';
+      const myAreaName = $('#my-area .name').textContent;
+      $('#winner-text').textContent = d.winner === myAreaName ? '你赢了！' : (d.winner + ' 获胜');
+    }
+  }
+  if (d.event === 'roundWait') {
+    // 更新顶部状态栏
+    $('#poker-status').textContent = '本局结束 — 等待继续下一局 (' + d.ready + '/' + d.total + ' 人已确认)';
+    // 只有已经点击过的人，才换成等待提示；没点过的人保留按钮
+    if (hasRequestedNextRound) {
+      const box = $('#poker-actions');
+      if (box) box.innerHTML = '<div class="poker-waiting">已确认，等待其他玩家...</div>';
+    }
   }
   if (d.event === 'error') {
     alert(d.msg);
@@ -619,6 +733,142 @@ $('#end-turn-btn').onclick = () => {
   }
   send({ type: 'endTurn' });
 };
+
+/* ==================== 德州扑克 ==================== */
+$('#btn-poker-rule').onclick = () => { $('#poker-rule-modal').style.display = 'flex'; };
+$('#close-poker-rule').onclick = () => { $('#poker-rule-modal').style.display = 'none'; };
+$('#btn-leave-poker').onclick = () => { send({ type: 'leaveRoom' }); showView('#view-lobby'); };
+$('#btn-poker-chat').onclick = () => { $('#chat-panel').style.display = $('#chat-panel').style.display === 'none' ? 'flex' : 'none'; };
+$('#btn-end-poker').onclick = () => {
+  if (!confirm('确定要结束对局吗？所有玩家将回到准备状态。')) return;
+  send({ type: 'endGame' });
+};
+
+function isRedCard(s) { return s && (s.includes('♥') || s.includes('♦')); }
+function phaseName(p) {
+  return { preflop: '翻牌前', flop: '翻牌', turn: '转牌', river: '河牌', showdown: '比牌', ended: '结束', idle: '等待' }[p] || p;
+}
+
+function renderPokerState(s) {
+  if (!s) return;
+  const me = s.players[myGameIndex];
+  const isMyTurn = me && me.isCurrent && !me.folded && !me.allin && s.phase !== 'showdown' && s.phase !== 'ended';
+  $('#poker-status').textContent = phaseName(s.phase) + ' | 底池: ' + s.pot + ' | 当前注: ' + s.currentBet + ' | ' + (isMyTurn ? '你的回合' : ((s.players[s.currentPlayer] && s.players[s.currentPlayer].name) + ' 的回合'));
+  $('#poker-pot-val').textContent = s.pot;
+  $('#poker-bet-val').textContent = s.currentBet;
+
+  $('#poker-community').innerHTML = s.communityCards.map(c => {
+    const suitLen = c.length > 2 ? 2 : 1;
+    return '<div class="poker-card ' + (isRedCard(c) ? 'red' : 'black') + '"><div class="pc-suit">' + c.slice(0, suitLen) + '</div><div class="pc-rank">' + c.slice(suitLen) + '</div></div>';
+  }).join('');
+
+  const log = $('#poker-log');
+  if (log) {
+    log.innerHTML = s.logs.map(l => '<div>' + l + '</div>').join('');
+    log.scrollTop = log.scrollHeight;
+  }
+
+  renderPokerPlayers(s);
+  renderPokerActions(s);
+  // 结束对局按钮仅房主可见
+  $('#btn-end-poker').style.display = isRoomOwner ? 'inline-block' : 'none';
+}
+
+function renderPokerPlayers(s) {
+  const opp = $('#poker-opponents');
+  let html = '';
+  s.players.forEach((p, i) => {
+    if (i === myGameIndex) return;
+    html += buildPokerPlayerHtml(p, s);
+  });
+  opp.innerHTML = html;
+
+  const me = s.players[myGameIndex];
+  if (me) {
+    const myCards = isSpectator ? '' : (myPokerHand || []).map(c => {
+      const suitLen = c.length > 2 ? 2 : 1;
+      return '<div class="poker-card ' + (isRedCard(c) ? 'red' : 'black') + '"><div class="pc-suit">' + c.slice(0, suitLen) + '</div><div class="pc-rank">' + c.slice(suitLen) + '</div></div>';
+    }).join('');
+    $('#poker-self-info').innerHTML =
+      '<div class="psi-name">' + me.name + (me.isDealer ? ' <span class="dealer-badge">D</span>' : '') + (me.isCurrent ? ' <span class="current-badge">▶</span>' : '') + '</div>' +
+      '<div class="psi-chips">筹码: ' + me.chips + '</div>' +
+      '<div class="psi-bet">' + (me.bet > 0 ? '本轮下注: ' + me.bet : (me.totalBet > 0 ? '本局已投: ' + me.totalBet : '')) + '</div>' +
+      '<div class="psi-status">' + (me.folded ? '<span style="color:#e74c3c">已弃牌</span>' : (me.allin ? '<span style="color:#f39c12">全下</span>' : '')) + '</div>';
+    $('#poker-self-cards').innerHTML = myCards;
+  }
+}
+
+function buildPokerPlayerHtml(p, s) {
+  const status = p.folded ? 'folded' : (p.allin ? 'allin' : '');
+  const showCards = (s.phase === 'showdown' || s.phase === 'ended') && p.holeCards;
+  const cardsHtml = showCards
+    ? p.holeCards.map(c => {
+        const suitLen = c.length > 2 ? 2 : 1;
+        return '<div class="poker-card small ' + (isRedCard(c) ? 'red' : 'black') + '"><div class="pc-suit">' + c.slice(0, suitLen) + '</div><div class="pc-rank">' + c.slice(suitLen) + '</div></div>';
+      }).join('')
+    : (p.folded ? '<div class="poker-status-text">弃牌</div>' : '<div class="poker-card small back"></div><div class="poker-card small back"></div>');
+  const best = (s.phase === 'showdown' || s.phase === 'ended') && p.bestHand ? '<div class="ppo-best">' + p.bestHand + '</div>' : '';
+  return (
+    '<div class="poker-player ' + (p.isCurrent ? 'current' : '') + ' ' + status + '">' +
+      '<div class="ppo-name">' + p.name + (p.isDealer ? ' <span class="dealer-badge">D</span>' : '') + '</div>' +
+      '<div class="ppo-chips">' + p.chips + '</div>' +
+      '<div class="ppo-bet">' + (p.bet > 0 ? '下注 ' + p.bet : (p.totalBet > 0 ? '已投 ' + p.totalBet : '')) + '</div>' +
+      '<div class="ppo-cards">' + cardsHtml + '</div>' +
+      best +
+    '</div>'
+  );
+}
+
+function renderPokerActions(s) {
+  const box = $('#poker-actions');
+  if (isSpectator) { box.innerHTML = '<div class="poker-waiting">观战中</div>'; return; }
+  // 对局已结束：显示继续按钮
+  if (s.phase === 'ended') {
+    box.innerHTML = '<button class="poker-btn" style="background:#27ae60" onclick="sendNextRound()">继续下一局</button>';
+    return;
+  }
+  const me = s.players[myGameIndex];
+  if (!me || me.folded || me.allin || s.currentPlayer !== myGameIndex || s.phase === 'showdown') {
+    box.innerHTML = '<div class="poker-waiting">等待其他玩家...</div>';
+    return;
+  }
+  const need = s.currentBet - me.bet;
+  let html = '';
+  html += '<button class="poker-btn fold" onclick="sendPokerAction(\'fold\')">弃牌</button>';
+  if (need <= 0) {
+    html += '<button class="poker-btn check" onclick="sendPokerAction(\'check\')">过牌</button>';
+  } else {
+    const callAmount = Math.min(need, me.chips);
+    html += '<button class="poker-btn call" onclick="sendPokerAction(\'call\')">跟注 ' + callAmount + '</button>';
+  }
+  if (me.chips > need) {
+    const minRaiseTo = s.currentBet + 20;
+    const maxRaiseTo = me.bet + me.chips;
+    const defaultVal = Math.min(minRaiseTo + 20, maxRaiseTo);
+    html += '<div class="raise-wrap"><input type="number" id="raise-input" value="' + defaultVal + '" min="' + minRaiseTo + '" max="' + maxRaiseTo + '" step="10"><button class="poker-btn raise" onclick="sendPokerRaise()">加注</button></div>';
+  }
+  html += '<button class="poker-btn allin" onclick="sendPokerAction(\'allin\')">全下 ' + me.chips + '</button>';
+  box.innerHTML = html;
+}
+
+function renderPokerHand() {
+  if (pokerState) renderPokerPlayers(pokerState);
+}
+
+function sendPokerAction(action) {
+  send({ type: 'bet', action });
+}
+function sendPokerRaise() {
+  const val = parseInt($('#raise-input').value) || 0;
+  send({ type: 'bet', action: 'raise', amount: val });
+}
+function sendNextRound() {
+  hasRequestedNextRound = true;
+  send({ type: 'nextRound' });
+  // 本地立即响应，避免延迟
+  const box = $('#poker-actions');
+  if (box) box.innerHTML = '<div class="poker-waiting">已确认，等待其他玩家...</div>';
+}
 </script>
 </body>
 </html>

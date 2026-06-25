@@ -3,6 +3,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const CardGameEngine = require('./games/card-game');
+const TexasHoldemEngine = require('./games/texas-holdem');
 
 const PORT = 3456;
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript' };
@@ -15,9 +16,10 @@ let nextUserId = 1;
 let nextRoomId = 1;
 
 const GAMES = [
-  { id: 'card',   name: '卡牌对战',   desc: '双人回合制卡牌对战', maxPlayers: 2, available: true },
-  { id: 'chess',  name: '象棋 (开发中)', desc: '敬请期待', maxPlayers: 2, available: false },
-  { id: 'snake',  name: '贪吃蛇 (开发中)', desc: '敬请期待', maxPlayers: 4, available: false }
+  { id: 'card',   name: '卡牌对战',   desc: '双人回合制卡牌对战', minPlayers: 2, maxPlayers: 2, available: true },
+  { id: 'poker',  name: '德州扑克',   desc: '多人德州扑克（2-6人）', minPlayers: 2, maxPlayers: 6, available: true },
+  { id: 'chess',  name: '象棋 (开发中)', desc: '敬请期待', minPlayers: 2, maxPlayers: 2, available: false },
+  { id: 'snake',  name: '贪吃蛇 (开发中)', desc: '敬请期待', minPlayers: 2, maxPlayers: 4, available: false }
 ];
 
 function nowStr() {
@@ -174,7 +176,8 @@ wss.on('connection', (ws) => {
         players: [user.id], spectators: [],
         status: 'waiting', chat: [], gameInstance: null,
         maxPlayers: game.maxPlayers, ownerId: user.id,
-        ready: new Set()
+        ready: new Set(),
+        nextRoundReady: new Set()
       };
       rooms.set(rid, room);
       user.state = 'room';
@@ -263,6 +266,7 @@ wss.on('connection', (ws) => {
 
       // 如果游戏正在进行，发送当前游戏状态
       if (room.status === 'playing' && room.gameInstance) {
+        send(ws, { event: 'gameStarted', roomId: room.id, gameType: room.gameType });
         const state = room.gameInstance._statePayload();
         send(ws, { event: 'update', state });
         send(ws, { myHand: [], myIndex: -1, spectator: true });
@@ -285,8 +289,10 @@ wss.on('connection', (ws) => {
     if (msg.type === 'startGame') {
       const room = rooms.get(user.roomId);
       if (!room || room.ownerId !== user.id) { send(ws, { event: 'error', msg: '无权开始' }); return; }
+      const game = GAMES.find(g => g.id === room.gameType);
+      if (!game) { send(ws, { event: 'error', msg: '游戏不存在' }); return; }
       if (room.status !== 'waiting') { send(ws, { event: 'error', msg: '游戏已开始' }); return; }
-      if (room.players.length < room.maxPlayers) { send(ws, { event: 'error', msg: '人数不足' }); return; }
+      if (room.players.length < game.minPlayers) { send(ws, { event: 'error', msg: '人数不足' }); return; }
       if (!room.players.every(uid => room.ready.has(uid))) { send(ws, { event: 'error', msg: '并非所有玩家都已准备' }); return; }
 
       room.status = 'playing';
@@ -296,12 +302,27 @@ wss.on('connection', (ws) => {
         }
       }).filter(Boolean);
 
-      room.gameInstance = new CardGameEngine(players, (pIdx, obj) => {
+      const sendToPlayer = (pIdx, obj) => {
         const uid = room.players[pIdx];
         for (const [ws2, u] of users) {
           if (u.id === uid) { send(ws2, obj); break; }
         }
-      });
+      };
+
+      // 德州扑克保留上一局筹码
+      const prevChips = (room.gameType === 'poker' && room.gameInstance)
+        ? room.gameInstance.players.map(p => ({ id: p.id, chips: p.chips }))
+        : [];
+
+      if (room.gameType === 'card') {
+        room.gameInstance = new CardGameEngine(players, sendToPlayer);
+      } else if (room.gameType === 'poker') {
+        room.gameInstance = new TexasHoldemEngine(players, sendToPlayer);
+        room.gameInstance.players.forEach(p => {
+          const found = prevChips.find(c => c.id === p.id);
+          if (found) p.chips = found.chips;
+        });
+      }
       room.gameInstance.start();
 
       // 给所有人标记 gameIndex
@@ -311,7 +332,7 @@ wss.on('connection', (ws) => {
         }
       });
 
-      broadcastRoom(room.id, { event: 'gameStarted', roomId: room.id });
+      broadcastRoom(room.id, { event: 'gameStarted', roomId: room.id, gameType: room.gameType });
       return;
     }
 
@@ -327,7 +348,52 @@ wss.on('connection', (ws) => {
       if (room.status !== 'playing' || !room.gameInstance || !room.gameInstance.ended) {
         send(ws, { event: 'error', msg: '游戏未结束' }); return;
       }
-      // 重置房间状态
+      // 德州扑克不清除 engine 以保留筹码，其他游戏销毁
+      if (room.gameType !== 'poker') {
+        room.gameInstance = null;
+      }
+      room.status = 'waiting';
+      room.ready.clear();
+      room.players.forEach(uid => {
+        for (const [, u] of users) { if (u.id === uid) u.gameIndex = -1; }
+      });
+      broadcastRoom(room.id, buildRoomState(room));
+      return;
+    }
+
+    /* ---------- 继续下一局（投票制） ---------- */
+    if (msg.type === 'nextRound') {
+      const room = rooms.get(user.roomId);
+      if (!room || !room.gameInstance) return;
+      if (room.gameType !== 'poker') return;
+      if (!room.gameInstance.ended) return;
+      if (!room.players.includes(user.id)) return;
+
+      room.nextRoundReady.add(user.id);
+      if (room.players.every(uid => room.nextRoundReady.has(uid))) {
+        room.nextRoundReady.clear();
+        room.gameInstance.start();
+      } else {
+        broadcastRoom(room.id, {
+          event: 'roundWait',
+          ready: room.nextRoundReady.size,
+          total: room.players.length
+        });
+      }
+      return;
+    }
+
+    /* ---------- 结束对局（房主专用） ---------- */
+    if (msg.type === 'endGame') {
+      const room = rooms.get(user.roomId);
+      if (!room) { send(ws, { event: 'error', msg: '房间不存在' }); return; }
+      if (room.ownerId !== user.id) { send(ws, { event: 'error', msg: '只有房主可以结束对局' }); return; }
+      if (room.status !== 'playing' || !room.gameInstance) { send(ws, { event: 'error', msg: '游戏未在进行中' }); return; }
+
+      // 停止引擎（清除定时器）
+      if (typeof room.gameInstance.stop === 'function') {
+        room.gameInstance.stop();
+      }
       room.gameInstance = null;
       room.status = 'waiting';
       room.ready.clear();
@@ -339,7 +405,7 @@ wss.on('connection', (ws) => {
     }
 
     /* ---------- 游戏内消息 ---------- */
-    if (msg.type === 'play' || msg.type === 'discard' || msg.type === 'endTurn') {
+    if (msg.type === 'play' || msg.type === 'discard' || msg.type === 'endTurn' || msg.type === 'bet') {
       const room = rooms.get(user.roomId);
       if (!room || !room.gameInstance || room.gameInstance.ended) return;
       const pIdx = room.players.indexOf(user.id);
@@ -367,6 +433,7 @@ function leaveRoomInternal(userId) {
       room.players = room.players.filter(id => id !== userId);
       room.spectators = room.spectators.filter(id => id !== userId);
       room.ready.delete(userId);
+      room.nextRoundReady.delete(userId);
       if (room.players.length === 0 && room.spectators.length === 0) {
       room.chat = [];
       rooms.delete(room.id);
