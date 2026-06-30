@@ -274,6 +274,37 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    /* ---------- 切换为观战 ---------- */
+    if (msg.type === 'becomeSpectator') {
+      const room = rooms.get(user.roomId);
+      if (!room) { send(ws, { event: 'error', msg: '不在房间中' }); return; }
+      if (room.status !== 'waiting') { send(ws, { event: 'error', msg: '游戏中不可切换身份' }); return; }
+      if (!room.players.includes(user.id)) { send(ws, { event: 'error', msg: '你当前不是玩家' }); return; }
+      if (room.ownerId === user.id) { send(ws, { event: 'error', msg: '房主不可切换为观战' }); return; }
+
+      room.players = room.players.filter(id => id !== user.id);
+      room.spectators.push(user.id);
+      room.ready.delete(user.id);
+      broadcastRoom(room.id, buildRoomState(room));
+      send(ws, buildRoomState(room));
+      return;
+    }
+
+    /* ---------- 切换为玩家 ---------- */
+    if (msg.type === 'becomePlayer') {
+      const room = rooms.get(user.roomId);
+      if (!room) { send(ws, { event: 'error', msg: '不在房间中' }); return; }
+      if (room.status !== 'waiting') { send(ws, { event: 'error', msg: '游戏中不可切换身份' }); return; }
+      if (!room.spectators.includes(user.id)) { send(ws, { event: 'error', msg: '你当前不是观战者' }); return; }
+      if (room.players.length >= room.maxPlayers) { send(ws, { event: 'error', msg: '玩家已满' }); return; }
+
+      room.spectators = room.spectators.filter(id => id !== user.id);
+      room.players.push(user.id);
+      broadcastRoom(room.id, buildRoomState(room));
+      send(ws, buildRoomState(room));
+      return;
+    }
+
     /* ---------- 准备/取消准备 ---------- */
     if (msg.type === 'toggleReady') {
       const room = rooms.get(user.roomId);

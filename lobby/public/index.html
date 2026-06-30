@@ -52,7 +52,9 @@
   <div class="room-header">
     <button id="btn-leave-room">离开房间</button>
     <h2 id="room-title">房间</h2>
+    <span id="room-role-badge" style="font-size:12px;color:#aaa;margin-right:6px;display:none"></span>
     <button id="btn-ready" style="display:none">准备</button>
+    <button id="btn-switch-role" style="display:none">切换身份</button>
     <button id="btn-start-game" style="display:none">开始游戏</button>
   </div>
   <div class="room-body">
@@ -295,12 +297,14 @@
       <button id="close-poker-rule">知道了</button>
     </div>
   </div>
-  <div id="poker-settle-modal" class="modal" style="display:none">
-    <div class="modal-box settle-box">
-      <h2 id="settle-title">本局结算</h2>
-      <div id="settle-content"></div>
-      <button onclick="closePokerSettle()" id="settle-btn">确定</button>
-    </div>
+</div>
+
+<!-- 德州扑克总账弹窗：放在 body 顶层，不受视图切换影响 -->
+<div id="poker-settle-modal" class="modal" style="display:none">
+  <div class="modal-box settle-box">
+    <h2 id="settle-title">本局结算</h2>
+    <div id="settle-content"></div>
+    <button onclick="closePokerSettle()" id="settle-btn">确定</button>
   </div>
 </div>
 
@@ -445,13 +449,40 @@ function handleMessage(d) {
     }).join('');
     $('#room-spectator-list').innerHTML = d.spectators.map(s => `<div>${s.name}</div>`).join('') || '<div class="empty">暂无</div>';
     // 开始按钮显示
+    const mePlayer = d.players.find(p => p.name === myName);
+    const meSpectator = d.spectators.find(s => s.name === myName);
     const isOwner = d.players[0] && d.players[0].name === myName;
     isRoomOwner = isOwner;
-    const isPlayer = d.players.some(p => p.name === myName);
-    $('#btn-start-game').style.display = isOwner && d.status === 'waiting' ? 'inline-block' : 'none';
+    const isPlayer = !!mePlayer;
+    const roomWaiting = d.status === 'waiting';
+
+    // 身份标签
+    const roleBadge = $('#room-role-badge');
+    if (roleBadge) {
+      roleBadge.style.display = 'inline-block';
+      roleBadge.textContent = isPlayer ? '身份：玩家' : '身份：观战';
+      roleBadge.style.color = isPlayer ? '#2ecc71' : '#aaa';
+    }
+
+    // 按钮显示
+    $('#btn-start-game').style.display = isOwner && roomWaiting ? 'inline-block' : 'none';
     $('#btn-start-game').disabled = !d.allReady;
-    $('#btn-ready').style.display = isPlayer && d.status === 'waiting' ? 'inline-block' : 'none';
-    $('#btn-ready').textContent = d.ready.includes(d.players.find(p => p.name === myName)?.id) ? '取消准备' : '准备';
+    $('#btn-ready').style.display = isPlayer && roomWaiting ? 'inline-block' : 'none';
+    $('#btn-ready').textContent = mePlayer && d.ready.includes(mePlayer.id) ? '取消准备' : '准备';
+
+    // 切换身份按钮
+    const switchBtn = $('#btn-switch-role');
+    if (switchBtn) {
+      if (roomWaiting && !isOwner) {
+        switchBtn.style.display = 'inline-block';
+        switchBtn.textContent = isPlayer ? '切为观战' : '切为参战';
+        switchBtn.onclick = () => {
+          send({ type: isPlayer ? 'becomeSpectator' : 'becomePlayer' });
+        };
+      } else {
+        switchBtn.style.display = 'none';
+      }
+    }
     if (d.status === 'waiting') {
       showView('#view-room');
       // 德州扑克：若之前有进行过对局，弹出最终总账
