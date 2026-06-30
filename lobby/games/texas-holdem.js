@@ -131,6 +131,8 @@ class TexasHoldemEngine {
     this.smallBlind = 10;
     this.bigBlind = 20;
     this.needsAction = new Set();
+    this.startChips = this.players.map(p => p.chips);
+    this.lastPots = [];
   }
 
   start() {
@@ -156,6 +158,8 @@ class TexasHoldemEngine {
     this.logs = [];
     this.ended = false;
     this.needsAction = new Set();
+    this.startChips = this.players.map(p => p.chips);
+    this.lastPots = [];
 
     this.deck = createDeck();
     shuffle(this.deck);
@@ -262,9 +266,8 @@ class TexasHoldemEngine {
 
       const remaining = this._notFolded();
       if (remaining.length === 1) {
-        // 只剩一人，直接赢
+        // 只剩一人，_endBettingRound -> _advancePhase -> _awardWinner 会处理
         this._endBettingRound();
-        this._awardWinner(remaining[0]);
         return;
       }
     } else if (action === 'check') {
@@ -350,8 +353,8 @@ class TexasHoldemEngine {
     // 推进
     const remaining = this._notFolded();
     if (remaining.length === 1) {
+      // _endBettingRound -> _advancePhase -> _awardWinner 会处理
       this._endBettingRound();
-      this._awardWinner(remaining[0]);
       return;
     }
 
@@ -444,29 +447,34 @@ class TexasHoldemEngine {
 
     // 边池分配
     const pots = this._calculateSidePots(contenders);
+    this.lastPots = [];
     for (const pot of pots) {
       const eligible = pot.eligible;
       if (eligible.length === 0) continue;
+      let winners;
       if (eligible.length === 1) {
         const winner = eligible[0];
         winner.chips += pot.amount;
         this.logs.push(`${winner.name} 赢得边池 ${pot.amount}`);
-        continue;
+        winners = [winner];
+      } else {
+        // 找最大牌
+        let bestScore = -1;
+        for (const ep of eligible) {
+          if (ep._score > bestScore) bestScore = ep._score;
+        }
+        const w = eligible.filter(ep => ep._score === bestScore);
+        const winAmount = Math.floor(pot.amount / w.length);
+        for (const wn of w) {
+          wn.chips += winAmount;
+          this.logs.push(`${wn.name} 赢得边池 ${winAmount}（${handRankName(bestScore)}）`);
+        }
+        // 余数给第一个赢家（基本不会发生，除非pot不能被整除）
+        const remainder = pot.amount - winAmount * w.length;
+        if (remainder > 0 && w.length > 0) w[0].chips += remainder;
+        winners = w;
       }
-      // 找最大牌
-      let bestScore = -1;
-      for (const ep of eligible) {
-        if (ep._score > bestScore) bestScore = ep._score;
-      }
-      const winners = eligible.filter(ep => ep._score === bestScore);
-      const winAmount = Math.floor(pot.amount / winners.length);
-      for (const w of winners) {
-        w.chips += winAmount;
-        this.logs.push(`${w.name} 赢得边池 ${winAmount}（${handRankName(bestScore)}）`);
-      }
-      // 余数给第一个赢家（基本不会发生，除非pot不能被整除）
-      const remainder = pot.amount - winAmount * winners.length;
-      if (remainder > 0 && winners.length > 0) winners[0].chips += remainder;
+      this.lastPots.push({ amount: pot.amount, winners: winners.map(w => w.name) });
     }
 
     this._finalizeGame();
@@ -485,6 +493,7 @@ class TexasHoldemEngine {
 
     this.logs.push(`${winner.name} 赢得底池 ${this.pot}`);
     winner.chips += this.pot;
+    this.lastPots = [{ amount: this.pot, winners: [winner.name] }];
     this._finalizeGame();
   }
 
@@ -508,10 +517,20 @@ class TexasHoldemEngine {
     this.ended = true;
     this.currentPlayer = -1;
     this.phase = 'ended';
+    this.pot = 0; // 已分配完毕，清零防重复award
     this._broadcastAll();
-    // 发送游戏结束事件
+    const settlement = {
+      players: this.players.map((p, i) => ({
+        name: p.name,
+        holeCards: p.holeCards.map(cardToString),
+        bestHand: handRankName(p._score || (this.communityCards.length >= 5 ? evaluate7([...p.holeCards, ...this.communityCards]) : 0)),
+        chips: p.chips,
+        change: p.chips - (this.startChips[i] || 0)
+      })),
+      pots: this.lastPots || []
+    };
     for (let i = 0; i < this.playerCount; i++) {
-      this._send(i, { event: 'over', winner: this._getWinnersText() });
+      this._send(i, { event: 'over', winner: this._getWinnersText(), settlement });
     }
   }
 

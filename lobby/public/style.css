@@ -630,3 +630,12 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   background: #0f172a; color: #fff; font-size: 13px; text-align: center;
 }
 #poker-log { flex: 0 0 auto; max-height: 100px; }
+
+/* ===== 结算弹窗 ===== */
+.settle-box { text-align: center; min-width: 340px; max-width: 640px; }
+.settle-table { width: 100%; border-collapse: collapse; font-size: 13px; color: #ddd; margin-bottom: 12px; }
+.settle-table th, .settle-table td { border: 1px solid #0f3460; padding: 6px 8px; text-align: center; }
+.settle-table th { background: #0f3460; color: #f1c40f; }
+.settle-table td:first-child { text-align: left; }
+.settle-rounds { text-align: left; font-size: 12px; color: #aaa; }
+.settle-round { margin: 3px 0; }

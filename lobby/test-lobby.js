@@ -76,6 +76,11 @@ async function main() {
   await delay(200);
   console.log('A 收到 roomState 更新:', A.messages.some(m => m.event === 'roomState' && m.players?.length === 2));
 
+  // 准备
+  send(A.ws, { type: 'toggleReady' });
+  send(B.ws, { type: 'toggleReady' });
+  await delay(300);
+
   // A 开始游戏
   A.messages.length = 0;
   B.messages.length = 0;

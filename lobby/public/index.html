@@ -230,22 +230,76 @@
     <div class="modal-box rule-box">
       <h2>德州扑克规则</h2>
       <div class="rule-content">
-        <p><b>游戏目标：</b>通过押注策略和牌型大小赢取对手筹码。</p>
-        <p><b>人数：</b>2-6人。</p>
-        <p><b>筹码：</b>每人初始1000筹码。</p>
-        <p><b>盲注：</b>小盲10，大盲20。每局庄家顺时针轮换。</p>
-        <p><b>发牌：</b>每人2张底牌（仅自己可见），公共牌分三轮发出：翻牌3张、转牌1张、河牌1张。</p>
-        <p><b>下注轮：</b>Preflop（底牌后）→ Flop（翻牌后）→ Turn（转牌后）→ River（河牌后）。</p>
-        <p><b>操作说明：</b></p>
-        <p><b>弃牌(Fold)</b>：放弃本局，不再参与。</p>
-        <p><b>过牌(Check)</b>：当前无人加注时，选择不下注。</p>
-        <p><b>跟注(Call)</b>：跟随当前最高注额。</p>
-        <p><b>加注(Raise)</b>：提高注额，至少增加一个大盲（20）。</p>
-        <p><b>全下(All In)</b>：押出所有剩余筹码。</p>
-        <p><b>比牌：</b>未弃牌玩家用2张底牌+5张公牌选出最大的5张组合比大小。</p>
-        <p><b>牌型大小：</b>同花顺 &gt; 四条 &gt; 葫芦 &gt; 同花 &gt; 顺子 &gt; 三条 &gt; 两对 &gt; 一对 &gt; 高牌。</p>
+        <p><b>一、游戏概览</b></p>
+        <p>德州扑克是 2-6 人的牌局，每人目标是用 2 张底牌 + 5 张公共牌组成最大的 5 张牌，赢取底池筹码。</p>
+        <p>完整流程：<b>发底牌 → 盲注下注 → 翻牌 → 翻牌下注 → 转牌 → 转牌下注 → 河牌 → 河牌下注 → 比牌</b></p>
+
+        <p><b>二、位置与行动顺序</b></p>
+        <p>每局有一个<b>庄家（D）</b>，由系统标记，每局顺时针轮换。位置决定你的行动顺序：</p>
+        <p>• <b>小盲（SB）</b>：庄家下家，开局强制下 10 筹码，每轮下注第一个行动。</p>
+        <p>• <b>大盲（BB）</b>：小盲下家，开局强制下 20 筹码。</p>
+        <p>• <b>其他位置</b>：依次按顺时针行动。</p>
+        <p><b>下注轮的第一次行动</b>：从<b>大盲的下家</b>开始（Preflop 除外，Preflop 从大盲下家开始行动）。之后每一轮都从<b>小盲</b>开始。</p>
+
+        <p><b>三、筹码与盲注</b></p>
+        <p>• 每人初始 1000 筹码，局与局之间连续保留。</p>
+        <p>• 小盲 = 10，大盲 = 20。盲注金额固定。</p>
+        <p>• 如果你筹码不够付盲注，则全部押出（变成 allin）。</p>
+
+        <p><b>四、四种下注轮</b></p>
+        <p><b>Preflop（翻牌前）</b>：发完 2 张底牌后立即开始。此时桌上没有公共牌。</p>
+        <p><b>Flop（翻牌）</b>：发出 3 张公共牌。</p>
+        <p><b>Turn（转牌）</b>：发出第 4 张公共牌。</p>
+        <p><b>River（河牌）</b>：发出第 5 张公共牌。</p>
+        <p>每轮都要重新开始下注（下一个人先行动）。</p>
+
+        <p><b>五、操作说明（什么时候可以用？）</b></p>
+        <p>• <b>弃牌(Fold)</b>：任何时候都可以放弃本局，已押的筹码不要了。</p>
+        <p>• <b>过牌(Check)</b>：<b>仅当没有人加注时</b>，选择不下注跟牌。如果有人已经加注了，你就不能过牌，必须跟注或加注或弃牌。</p>
+        <p>• <b>跟注(Call)</b>：拿出筹码跟上当前最高的注额。如果筹码不够，只能 allin。</p>
+        <p>• <b>加注(Raise)</b>：提高注额。<b>加注后的金额必须 >= 当前注额 + 大盲(20)</b>。例如当前注额是 40，你至少加注到 60。</p>
+        <p>• <b>全下(All In)</b>：把剩余所有筹码押上。如果 allin 金额小于当前注额，视为一次"不足额跟注"，别人跟注时只需要跟到你的实际金额。</p>
+
+        <p><b>六、一轮下注什么时候结束？</b></p>
+        <p>当<b>所有人都行动过，并且未弃牌的人下注额相等</b>时，本轮结束，进入下一阶段。</p>
+        <p>如果有人加注，则所有还没弃牌且还能行动的人必须再次决定（跟注/加注/弃牌）。</p>
+
+        <p><b>七、什么是边池？</b></p>
+        <p>当有人 allin 但筹码较少时，其他玩家可以继续加注，超出 allin 玩家的部分会形成<b>边池</b>。</p>
+        <p>举个例子：A 有 50 筹码 allin，B 有 1000 筹码 allin，C 有 1000 筹码跟注。</p>
+        <p>• <b>主池</b>：50 × 3 = 150，A、B、C 都有资格赢。</p>
+        <p>• <b>边池</b>：950 × 2 = 1900，只有 B 和 C 有资格赢（因为 A 只出了 50）。</p>
+        <p>A 即使牌最大，也只能赢主池 150，无法赢边池。</p>
+
+        <p><b>八、比牌规则</b></p>
+        <p>未弃牌的玩家用<b>2 张底牌 + 5 张公共牌</b>中，选出<b>最大的 5 张组合</b>比大小。</p>
+        <p>不是所有牌都要用，你可以选择任意组合。</p>
+
+        <p><b>九、牌型大小（从大到小）</b></p>
+        <p>同花顺 > 四条 > 葫芦 > 同花 > 顺子 > 三条 > 两对 > 一对 > 高牌。</p>
+        <p style="color:#e74c3c"><b>花色没有大小之分！</b>黑桃♠、红桃♥、梅花♣、方片♦ 完全平等。</p>
+
+        <p><b>十、同牌型如何比大小？</b></p>
+        <p>• <b>高牌</b>：逐张从最大牌开始比。例：A-K-8-5-3 胜 A-K-8-5-2。</p>
+        <p>• <b>一对</b>：先比对子大小，相同则比单牌（kicker）。例：K-K-A-5-3 胜 Q-Q-A-K-10。</p>
+        <p>• <b>两对</b>：先比大对，再比小对，最后比单牌。例：K-K-8-8-5 胜 Q-Q-J-J-A。</p>
+        <p>• <b>三条</b>：先比三条大小，再依次比剩余两张单牌。例：8-8-8-A-5 胜 7-7-7-A-K。</p>
+        <p>• <b>顺子</b>：比最大那张。A-2-3-4-5（小顺）只算 5 高，被 6 高顺子压制。10-J-Q-K-A（大顺）最大。</p>
+        <p>• <b>同花</b>：逐张从最大牌开始比，同高牌逻辑。</p>
+        <p>• <b>葫芦</b>：先比三条大小，相同再比对子。例：K-K-K-8-8 胜 Q-Q-Q-A-A。</p>
+        <p>• <b>四条</b>：先比四条大小，再比单张。例：A-A-A-A-7 胜 K-K-K-K-Q。</p>
+        <p>• <b>同花顺</b>：同顺子规则，比最大牌。A-5 小顺只算 5 高。</p>
+
+        <p><b>平局：</b>如所有比较牌完全相等，则相关玩家平分该底池。</p>
       </div>
       <button id="close-poker-rule">知道了</button>
+    </div>
+  </div>
+  <div id="poker-settle-modal" class="modal" style="display:none">
+    <div class="modal-box settle-box">
+      <h2 id="settle-title">本局结算</h2>
+      <div id="settle-content"></div>
+      <button onclick="closePokerSettle()" id="settle-btn">确定</button>
     </div>
   </div>
 </div>
@@ -257,6 +311,8 @@ let myHand = [], gameState = null, myGameIndex = 0, isSpectator = false;
 let discardMode = false, discardTarget = 0, selectedToDiscard = [];
 let pokerState = null, myPokerHand = [], isRoomOwner = false;
 let hasRequestedNextRound = false;
+let pokerHistory = []; // 每局结算数据
+let pokerGameActive = false;
 let chatScope = 'lobby';
 let chatMessages = { lobby: [], room: [] };
 let unread = { lobby: 0, room: 0 };
@@ -396,12 +452,24 @@ function handleMessage(d) {
     $('#btn-start-game').disabled = !d.allReady;
     $('#btn-ready').style.display = isPlayer && d.status === 'waiting' ? 'inline-block' : 'none';
     $('#btn-ready').textContent = d.ready.includes(d.players.find(p => p.name === myName)?.id) ? '取消准备' : '准备';
-    if (d.status === 'waiting') showView('#view-room');
+    if (d.status === 'waiting') {
+      showView('#view-room');
+      // 德州扑克：若之前有进行过对局，弹出最终总账
+      if (currentGameType === 'poker' && pokerGameActive && pokerHistory.length > 0) {
+        renderPokerFinalSettle();
+        pokerGameActive = false;
+        pokerHistory = [];
+        pokerState = null;
+        myPokerHand = [];
+        hasRequestedNextRound = false;
+      }
+    }
   }
   if (d.event === 'gameStarted') {
     const gType = d.gameType || currentGameType;
     if (gType === 'poker') {
       showView('#view-poker');
+      pokerGameActive = true;
     } else {
       showView('#view-game');
     }
@@ -415,9 +483,11 @@ function handleMessage(d) {
   if (d.event === 'update' || d.event === 'start') {
     if (currentGameType === 'poker') {
       pokerState = d.state;
-      // 新局开始（preflop）时重置继续标志
+      // 新局开始（preflop）时重置继续标志并关闭结算弹窗
       if (d.state && d.state.phase === 'preflop') {
         hasRequestedNextRound = false;
+        const settleModal = $('#poker-settle-modal');
+        if (settleModal) settleModal.style.display = 'none';
       }
       renderPokerState(d.state);
     } else {
@@ -446,7 +516,9 @@ function handleMessage(d) {
   }
   if (d.event === 'over') {
     if (currentGameType === 'poker') {
-      // 扑克：在操作区显示"继续下一局"按钮或等待提示
+      // 记录本局结算，但不弹窗（最后总账时一起算）
+      if (d.settlement) pokerHistory.push(d.settlement);
+      // 操作区更新按钮状态
       const box = $('#poker-actions');
       if (box && !isSpectator) {
         if (hasRequestedNextRound) {
@@ -868,6 +940,66 @@ function sendNextRound() {
   // 本地立即响应，避免延迟
   const box = $('#poker-actions');
   if (box) box.innerHTML = '<div class="poker-waiting">已确认，等待其他玩家...</div>';
+}
+
+function renderPokerSettlement(settlement) {
+  // 已废弃：改为最终总账统一显示
+}
+
+function renderPokerFinalSettle() {
+  const box = $('#settle-content');
+  if (!box || !pokerHistory.length) return;
+
+  $('#settle-title').textContent = '对局总账（共 ' + pokerHistory.length + ' 局）';
+  $('#settle-btn').textContent = '关闭';
+
+  const playerNames = [...new Set(pokerHistory.flatMap(s => s.players.map(p => p.name)))];
+  const stats = playerNames.map(name => {
+    const rounds = pokerHistory.map(s => {
+      const p = s.players.find(x => x.name === name);
+      return p ? p.change : 0;
+    });
+    const total = rounds.reduce((a, b) => a + b, 0);
+    return { name, rounds, total };
+  });
+  stats.sort((a, b) => b.total - a.total);
+
+  let html = '<table class="settle-table">';
+  html += '<tr><th>玩家</th>';
+  for (let i = 0; i < pokerHistory.length; i++) html += '<th>第' + (i + 1) + '局</th>';
+  html += '<th>总计</th></tr>';
+
+  for (const st of stats) {
+    html += '<tr>';
+    html += '<td><b>' + st.name + '</b></td>';
+    for (const ch of st.rounds) {
+      const color = ch > 0 ? '#2ecc71' : (ch < 0 ? '#e74c3c' : '#aaa');
+      const sign = ch > 0 ? '+' : '';
+      html += '<td style="color:' + color + '">' + sign + ch + '</td>';
+    }
+    const totalColor = st.total > 0 ? '#2ecc71' : (st.total < 0 ? '#e74c3c' : '#aaa');
+    const totalSign = st.total > 0 ? '+' : '';
+    html += '<td style="color:' + totalColor + ';font-weight:bold">' + totalSign + st.total + '</td>';
+    html += '</tr>';
+  }
+  html += '</table>';
+
+  if (pokerHistory.length > 1) {
+    html += '<div class="settle-rounds">';
+    for (let i = 0; i < pokerHistory.length; i++) {
+      const s = pokerHistory[i];
+      html += '<div class="settle-round">第' + (i + 1) + '局：' +
+        (s.pots || []).map(p => '底池<b>' + p.amount + '</b>→' + p.winners.join('、')).join('； ') + '</div>';
+    }
+    html += '</div>';
+  }
+
+  box.innerHTML = html;
+  $('#poker-settle-modal').style.display = 'flex';
+}
+
+function closePokerSettle() {
+  $('#poker-settle-modal').style.display = 'none';
 }
 </script>
 </body>
