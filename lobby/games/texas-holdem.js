@@ -252,6 +252,53 @@ class TexasHoldemEngine {
     this.currentPlayer = idx;
   }
 
+  playerDisconnected(idx) {
+    if (this.ended || idx < 0 || idx >= this.playerCount) return;
+    const p = this.players[idx];
+    if (!p || p.folded) return;
+
+    // 如果他本轮下注了，收进 pot
+    if (p.bet > 0) {
+      this.pot += p.bet;
+      p.totalBet += p.bet;
+      p.bet = 0;
+    }
+    p.folded = true;
+    p.disconnected = true;
+    this.logs.push(`${p.name} 离开，自动弃牌`);
+    this.needsAction.delete(idx);
+
+    const remaining = this._notFolded();
+    if (remaining.length === 1) {
+      this._awardWinner(remaining[0]);
+      return;
+    }
+
+    if (this.needsAction.size === 0) {
+      this._endBettingRound();
+      return;
+    }
+
+    // 如果他正是当前行动人，找下一个
+    if (this.currentPlayer === idx) {
+      let nextIdx = (idx + 1) % this.playerCount;
+      for (let step = 0; step < this.playerCount; step++) {
+        if (this.needsAction.has(nextIdx)) {
+          this.currentPlayer = nextIdx;
+          this._broadcastAll();
+          return;
+        }
+        nextIdx = (nextIdx + 1) % this.playerCount;
+      }
+      // 没有需要行动的了
+      this._endBettingRound();
+      return;
+    }
+
+    // 非当前玩家断线，也要广播更新让所有人看到他已弃牌
+    this._broadcastAll();
+  }
+
   _handleBet(idx, msg) {
     const p = this.players[idx];
     if (p.folded || p.allin || p.chips <= 0) return;
@@ -562,7 +609,8 @@ class TexasHoldemEngine {
         isCurrent: i === this.currentPlayer,
         isDealer: i === this.dealer,
         // 手牌数量不公开，只有观战时showdown阶段或自己的才公开
-        handSize: p.holeCards.length
+        handSize: p.holeCards.length,
+        disconnected: !!p.disconnected
       }))
     };
     if (this.phase === 'showdown' || this.phase === 'ended') {

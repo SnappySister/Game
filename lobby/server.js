@@ -370,7 +370,14 @@ wss.on('connection', (ws) => {
     /* ---------- 返回房间（原再来一局） ---------- */
     if (msg.type === 'backToRoom') {
       const room = rooms.get(user.roomId);
-      if (!room) { send(ws, { event: 'error', msg: '房间不存在' }); return; }
+      if (!room) {
+        user.state = 'lobby';
+        user.roomId = null;
+        user.gameIndex = -1;
+        send(ws, buildLobbyState());
+        send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
+        return;
+      }
       // 如果房间已经重置，直接返回状态
       if (room.status === 'waiting' && !room.gameInstance) {
         send(ws, buildRoomState(room));
@@ -403,7 +410,44 @@ wss.on('connection', (ws) => {
       room.nextRoundReady.add(user.id);
       if (room.players.every(uid => room.nextRoundReady.has(uid))) {
         room.nextRoundReady.clear();
+
+        if (room.players.length < 2) {
+          room.gameInstance = null;
+          room.status = 'waiting';
+          room.ready.clear();
+          room.players.forEach(uid => {
+            for (const [, u] of users) { if (u.id === uid) u.gameIndex = -1; }
+          });
+          broadcastRoom(room.id, buildRoomState(room));
+          return;
+        }
+
+        if (room.players.length !== room.gameInstance.playerCount) {
+          const prevChips = room.gameInstance.players.map(p => ({ id: p.id, chips: p.chips }));
+          const players = room.players.map((uid, i) => {
+            for (const [ws2, u] of users) {
+              if (u.id === uid) return { id: uid, name: u.name, ws: ws2, index: i };
+            }
+          }).filter(Boolean);
+          const sendToPlayer = (pIdx, obj) => {
+            const uid = room.players[pIdx];
+            for (const [ws2, u] of users) {
+              if (u.id === uid) { send(ws2, obj); break; }
+            }
+          };
+          room.gameInstance = new TexasHoldemEngine(players, sendToPlayer);
+          room.gameInstance.players.forEach(p => {
+            const found = prevChips.find(c => c.id === p.id);
+            if (found) p.chips = found.chips;
+          });
+        }
+
         room.gameInstance.start();
+        room.players.forEach((uid, i) => {
+          for (const [, u] of users) {
+            if (u.id === uid) u.gameIndex = i;
+          }
+        });
       } else {
         broadcastRoom(room.id, {
           event: 'roundWait',
@@ -457,25 +501,39 @@ wss.on('connection', (ws) => {
 });
 
 function leaveRoomInternal(userId) {
+  let userObj = null;
+  let room = null;
   for (const [, u] of users) {
     if (u.id === userId) {
-      const room = rooms.get(u.roomId);
-      if (!room) { u.roomId = null; return; }
-      room.players = room.players.filter(id => id !== userId);
-      room.spectators = room.spectators.filter(id => id !== userId);
-      room.ready.delete(userId);
-      room.nextRoundReady.delete(userId);
-      if (room.players.length === 0 && room.spectators.length === 0) {
-      room.chat = [];
-      rooms.delete(room.id);
-      } else {
-        if (room.ownerId === userId && room.players.length > 0) room.ownerId = room.players[0];
-        broadcastRoom(room.id, buildRoomState(room));
-      }
-      u.roomId = null; u.gameIndex = -1;
+      userObj = u;
+      room = rooms.get(u.roomId);
       break;
     }
   }
+  if (!room) {
+    if (userObj) { userObj.roomId = null; userObj.gameIndex = -1; }
+    return;
+  }
+
+  // 游戏中：先通知引擎弃牌处理，再移除
+  if (room.status === 'playing' && room.gameInstance && room.players.includes(userId)) {
+    const playerIdx = room.gameInstance.players.findIndex(p => p.id === userId);
+    if (playerIdx >= 0) room.gameInstance.playerDisconnected(playerIdx);
+  }
+
+  room.players = room.players.filter(id => id !== userId);
+  room.spectators = room.spectators.filter(id => id !== userId);
+  room.ready.delete(userId);
+  room.nextRoundReady.delete(userId);
+
+  if (room.players.length === 0 && room.spectators.length === 0) {
+    room.chat = [];
+    rooms.delete(room.id);
+  } else {
+    if (room.ownerId === userId && room.players.length > 0) room.ownerId = room.players[0];
+    broadcastRoom(room.id, buildRoomState(room));
+  }
+  if (userObj) { userObj.roomId = null; userObj.gameIndex = -1; }
 }
 
 server.listen(PORT, () => console.log('游戏大厅运行在 http://localhost:' + PORT));

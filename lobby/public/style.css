@@ -644,3 +644,91 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
 .settle-table td:first-child { text-align: left; }
 .settle-rounds { text-align: left; font-size: 12px; color: #aaa; }
 .settle-round { margin: 3px 0; }
+
+/* ===== 移动端适配 ===== */
+@media (max-width: 768px) {
+  /* 全局 */
+  html, body { font-size: 14px; }
+
+  /* 登录 */
+  .login-box { padding: 24px 20px; min-width: auto; width: 90%; max-width: 340px; }
+  .login-box h1 { font-size: 22px; }
+  #nickname-input, #login-btn { font-size: 16px; padding: 12px; }
+
+  /* 大厅 */
+  .lobby-header { padding: 10px 14px; }
+  .lobby-header h2 { font-size: 16px; }
+  .lobby-body { flex-direction: column; padding: 10px; gap: 10px; }
+  .lobby-sidebar { width: 100%; }
+  .games-list { grid-template-columns: 1fr; }
+
+  /* 房间列表 */
+  .roomlist-header { padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+  .roomlist-header h2 { font-size: 16px; }
+  .roomlist-body { grid-template-columns: 1fr; padding: 10px; }
+  #btn-back-lobby, #btn-create-room { padding: 6px 12px; font-size: 13px; }
+
+  /* 房间内 */
+  .room-header { padding: 10px 14px; flex-wrap: wrap; gap: 6px; }
+  .room-header h2 { font-size: 16px; }
+  .room-body { flex-direction: column; padding: 10px; gap: 10px; }
+  #btn-ready, #btn-start-game, #btn-switch-role { padding: 6px 12px; font-size: 13px; }
+
+  /* 聊天面板 */
+  .chat-panel { width: calc(100vw - 20px); height: 50vh; right: 10px; bottom: 10px; }
+  .chat-toggle-btn { width: 44px; height: 44px; font-size: 18px; right: 10px; bottom: 10px; }
+
+  /* 弹窗 */
+  .modal-box { padding: 20px; width: 92vw; max-width: none; }
+  .rule-box { min-width: auto; max-width: none; }
+  .settle-box { min-width: auto; max-width: none; }
+  .settle-table { font-size: 12px; }
+  .settle-table th, .settle-table td { padding: 4px 5px; }
+
+  /* 德州扑克 */
+  #view-poker { padding: 6px; }
+  #poker-top-bar { gap: 6px; padding: 4px; }
+  #poker-status { font-size: 12px; }
+  .poker-top-btns { position: static; display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+  .poker-top-btns button { padding: 4px 8px; font-size: 11px; }
+  #poker-table { padding: 8px; gap: 6px; border-radius: 10px; }
+  #poker-opponents { gap: 6px; }
+  .poker-player { min-width: 70px; padding: 6px 8px; }
+  .ppo-name { font-size: 11px; }
+  .ppo-chips { font-size: 11px; }
+  .ppo-bet { font-size: 10px; }
+  .poker-card { width: 40px; height: 56px; }
+  .poker-card.small { width: 28px; height: 40px; }
+  .pc-suit { font-size: 14px; }
+  .pc-rank { font-size: 13px; }
+  .psi-name { font-size: 13px; }
+  .psi-chips { font-size: 12px; }
+  #poker-actions { gap: 6px; padding: 6px 0; }
+  .poker-btn { padding: 8px 12px; font-size: 13px; }
+  .raise-wrap input { width: 60px; padding: 5px; }
+  #poker-log { max-height: 80px; font-size: 11px; }
+  #poker-pot-box { font-size: 12px; }
+
+  /* 卡牌游戏 */
+  #view-game { padding: 6px; }
+  .card { width: 80px; height: 110px; }
+  .card-name { font-size: 14px; }
+  .card-desc { font-size: 9px; }
+}
+
+/* ===== 小屏手机额外优化 ===== */
+@media (max-width: 480px) {
+  .poker-btn { padding: 10px 14px; font-size: 14px; min-width: 56px; }
+  .poker-player { min-width: 60px; padding: 5px 6px; }
+  .poker-card { width: 34px; height: 48px; }
+  .poker-card.small { width: 24px; height: 34px; }
+  .pc-suit { font-size: 12px; }
+  .pc-rank { font-size: 11px; }
+  #btn-ready, #btn-start-game, #btn-switch-role, #btn-leave-room {
+    padding: 8px 12px; font-size: 13px;
+  }
+  .room-header { padding: 8px 10px; }
+  .room-body { padding: 8px; }
+  .log-box { font-size: 11px; padding: 6px; }
+}
+

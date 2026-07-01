@@ -731,7 +731,8 @@ function renderGameState(s) {
 function updateArea(id, p) {
   if (!p) return;
   const el = $('#' + id);
-  el.querySelector('.name').textContent = p.name;
+  el.querySelector('.name').textContent = p.name + (p.disconnected ? ' (已离开)' : '');
+  el.querySelector('.name').style.color = p.disconnected ? '#e74c3c' : '';
   el.querySelector('.hp-val').textContent = p.hp + '/' + p.maxHp;
   el.querySelector('.shield-val').textContent = p.shield;
   el.querySelector('.poison-val').textContent = p.poison;
@@ -896,7 +897,7 @@ function renderPokerPlayers(s) {
       '<div class="psi-name">' + me.name + (me.isDealer ? ' <span class="dealer-badge">D</span>' : '') + (me.isCurrent ? ' <span class="current-badge">▶</span>' : '') + '</div>' +
       '<div class="psi-chips">筹码: ' + me.chips + '</div>' +
       '<div class="psi-bet">' + (me.bet > 0 ? '本轮下注: ' + me.bet : (me.totalBet > 0 ? '本局已投: ' + me.totalBet : '')) + '</div>' +
-      '<div class="psi-status">' + (me.folded ? '<span style="color:#e74c3c">已弃牌</span>' : (me.allin ? '<span style="color:#f39c12">全下</span>' : '')) + '</div>';
+      '<div class="psi-status">' + (me.folded ? '<span style="color:#e74c3c">' + (me.disconnected ? '已离开' : '已弃牌') + '</span>' : (me.allin ? '<span style="color:#f39c12">全下</span>' : '')) + '</div>';
     $('#poker-self-cards').innerHTML = myCards;
   }
 }
@@ -909,15 +910,16 @@ function buildPokerPlayerHtml(p, s) {
         const suitLen = c.length > 2 ? 2 : 1;
         return '<div class="poker-card small ' + (isRedCard(c) ? 'red' : 'black') + '"><div class="pc-suit">' + c.slice(0, suitLen) + '</div><div class="pc-rank">' + c.slice(suitLen) + '</div></div>';
       }).join('')
-    : (p.folded ? '<div class="poker-status-text">弃牌</div>' : '<div class="poker-card small back"></div><div class="poker-card small back"></div>');
+    : (p.folded ? '<div class="poker-status-text">' + (p.disconnected ? '已离开' : '弃牌') + '</div>' : '<div class="poker-card small back"></div><div class="poker-card small back"></div>');
   const best = (s.phase === 'showdown' || s.phase === 'ended') && p.bestHand ? '<div class="ppo-best">' + p.bestHand + '</div>' : '';
+  const disconnectTag = p.disconnected ? '<div style="color:#e74c3c;font-size:11px">已离开</div>' : '';
   return (
     '<div class="poker-player ' + (p.isCurrent ? 'current' : '') + ' ' + status + '">' +
       '<div class="ppo-name">' + p.name + (p.isDealer ? ' <span class="dealer-badge">D</span>' : '') + '</div>' +
       '<div class="ppo-chips">' + p.chips + '</div>' +
       '<div class="ppo-bet">' + (p.bet > 0 ? '下注 ' + p.bet : (p.totalBet > 0 ? '已投 ' + p.totalBet : '')) + '</div>' +
       '<div class="ppo-cards">' + cardsHtml + '</div>' +
-      best +
+      best + disconnectTag +
     '</div>'
   );
 }

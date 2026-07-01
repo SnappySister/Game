@@ -292,6 +292,17 @@ class CardGameEngine {
     }
   }
 
+  playerDisconnected(idx) {
+    if (this.ended || idx < 0 || idx >= this.players.length) return;
+    const p = this.players[idx];
+    if (!p || p.hp <= 0) return;
+    p.hp = 0;
+    p.disconnected = true;
+    this.logs.push(`${p.name} 离开，自动判负`);
+    this._broadcastAll();
+    this._checkEnd();
+  }
+
   _statePayload() {
     return {
       turn: this.turn,
@@ -302,7 +313,7 @@ class CardGameEngine {
         poison: p.poison || 0, burn: p.burn || 0, burnTurn: p.burnTurn || 0,
         frozen: !!p.frozen, doom: p.doom || 0, doomStacks: p.doomStacks || 0,
         immune: !!p.immune, negImmune: !!p.negImmune, handSize: this._realHandCount(p),
-        isCurrent: i === this.turn
+        isCurrent: i === this.turn, disconnected: !!p.disconnected
       }))
     };
   }
