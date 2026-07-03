@@ -376,7 +376,11 @@
   <div class="modal-box settle-box">
     <h2>本局结算</h2>
     <div id="mahjong-settle-content"></div>
-    <button onclick="onMahjongSettleBtn()" id="mahjong-settle-btn">再来一局</button>
+    <div id="mahjong-settle-btns">
+      <button onclick="onMahjongSettleNextRound()" id="mahjong-settle-next" class="poker-btn">再来一局</button>
+      <button onclick="onMahjongSettleBackRoom()" id="mahjong-settle-back" class="poker-btn" style="background:#95a5a6">返回房间</button>
+      <button onclick="closeMahjongSettle()" id="mahjong-settle-close" class="poker-btn" style="background:#95a5a6;display:none">关闭</button>
+    </div>
   </div>
 </div>
 
@@ -1570,7 +1574,9 @@ function renderMahjongSettle(settlement) {
   html += '</table>';
   box.innerHTML = html;
   $('#mahjong-settle-modal').querySelector('h2').textContent = settlement.flowEnd ? '流局结算' : '本局结算';
-  $('#mahjong-settle-btn').textContent = '再来一局';
+  $('#mahjong-settle-next').style.display = 'inline-block';
+  $('#mahjong-settle-back').style.display = 'inline-block';
+  $('#mahjong-settle-close').style.display = 'none';
   $('#mahjong-settle-modal').style.display = 'flex';
 }
 function closeMahjongSettle() {
@@ -1591,12 +1597,13 @@ $('#btn-end-mahjong').onclick = () => {
   send({ type: 'endGame' });
 };
 
-function onMahjongSettleBtn() {
-  if ($('#mahjong-settle-btn').textContent === '关闭') {
-    closeMahjongSettle();
-  } else {
-    sendMahjongBackToRoom();
-  }
+function onMahjongSettleNextRound() {
+  sendMahjongNextRound();
+  closeMahjongSettle();
+}
+function onMahjongSettleBackRoom() {
+  sendMahjongBackToRoom();
+  closeMahjongSettle();
 }
 
 function sendMahjongNextRound() {
@@ -1617,7 +1624,9 @@ function renderMahjongFinalSettle() {
   if (!box || !mahjongHistory.length) return;
 
   $('#mahjong-settle-modal').querySelector('h2').textContent = '对局总账（共 ' + mahjongHistory.length + ' 局）';
-  $('#mahjong-settle-btn').textContent = '关闭';
+  $('#mahjong-settle-next').style.display = 'none';
+  $('#mahjong-settle-back').style.display = 'none';
+  $('#mahjong-settle-close').style.display = 'inline-block';
 
   const playerNames = [...new Set(mahjongHistory.flatMap(s => s.players.map(p => p.name)))];
   const stats = playerNames.map(name => {

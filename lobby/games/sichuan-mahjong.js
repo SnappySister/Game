@@ -239,6 +239,9 @@ class SichuanMahjongEngine {
       player.lastDrawn = null;
     }
 
+    // 出牌后清掉新牌标记，让放大效果消失
+    for (const t of player.hand) t.isNew = false;
+
     // 检查其他人是否可胡这张牌
     const huCandidates = [];
     for (let i = 0; i < this.players.length; i++) {
@@ -934,11 +937,35 @@ class SichuanMahjongEngine {
   _getTingTiles(hand, dingque) {
     if (hand.some(t => t.suit === dingque)) return [];
     const result = [];
-    for (const s of SUITS) {
-      if (s === dingque) continue;
-      for (const r of RANKS) {
-        const test = [...hand, { suit: s, rank: r }];
-        if (this._canHu(test, dingque)) result.push({ suit: s, rank: r });
+    const seen = new Set();
+
+    const handsToCheck = [];
+    if (hand.length % 3 === 0) {
+      // 12/15张等不规范手牌，直接算
+      handsToCheck.push(hand);
+    } else if (hand.length % 3 === 1) {
+      // 13张标准听牌
+      handsToCheck.push(hand);
+    } else {
+      // 14张（自己摸牌后）：尝试打出每张牌，计算剩下13张的听牌
+      for (let i = 0; i < hand.length; i++) {
+        handsToCheck.push(hand.filter((_, idx) => idx !== i));
+      }
+    }
+
+    for (const testHand of handsToCheck) {
+      for (const s of SUITS) {
+        if (s === dingque) continue;
+        for (const r of RANKS) {
+          const test = [...testHand, { suit: s, rank: r }];
+          if (this._canHu(test, dingque)) {
+            const key = `${s}_${r}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              result.push({ suit: s, rank: r });
+            }
+          }
+        }
       }
     }
     return result;
@@ -1058,7 +1085,7 @@ class SichuanMahjongEngine {
       dealerIndex: this.dealerIndex,
       currentPlayer: this.currentPlayer,
       deckCount: this.deck.length,
-      discardPile: this.discardPile.slice(-24),
+      discardPile: this.discardPile,
       pendingTile: this.pendingTile,
       waitingPlayers: this.waitingPlayers,
       logs: this.logs.slice(-20),

@@ -953,6 +953,8 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   font-size: 13px;
   justify-content: center;
   flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
 }
 #mahjong-ting-hint .ting-label {
   background: #e74c3c;
@@ -995,6 +997,8 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
 .mj-hand-tile.new-drawn {
   border: 3px solid #2ecc71;
   box-shadow: 0 0 8px #2ecc71;
+  transform: scale(1.18);
+  z-index: 10;
 }
 .mj-hand-tile.clickable {
   cursor: pointer; border: 2px solid #f1c40f;
