@@ -143,6 +143,14 @@ class SichuanMahjongEngine {
     this.logs.push(`${this.players[idx].name} 定缺${suitLabel(suit)}`);
 
     if (this.players.every(p => p.dingque !== null)) {
+      const allSame = this.players.every(p => p.dingque === this.players[0].dingque);
+      if (allSame) {
+        const sameSuit = suitLabel(this.players[0].dingque);
+        this.start();
+        this.logs.push(`全体定缺${sameSuit}，重新发牌`);
+        this._broadcastAll();
+        return;
+      }
       this.phase = 'playing';
       this.logs.push('定缺结束，庄家出牌');
     }

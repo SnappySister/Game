@@ -9,6 +9,37 @@ const SichuanMahjongEngine = require('./games/sichuan-mahjong');
 const PORT = 3456;
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript' };
 
+/* ==================== 日志系统 ==================== */
+const LOG_DIR = path.join(__dirname, 'logs');
+if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
+
+function logTime() {
+  const d = new Date();
+  return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`;
+}
+
+function logFileName() {
+  const d = new Date();
+  return `server-${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}.log`;
+}
+
+function writeLog(level, text) {
+  const line = `[${logTime()}] [${level}] ${text}\n`;
+  console.log(line.trim());
+  try {
+    fs.appendFileSync(path.join(LOG_DIR, logFileName()), line);
+  } catch (e) {
+    console.error('日志写入失败:', e.message);
+  }
+}
+
+const log = {
+  info:  (text) => writeLog('INFO', text),
+  warn:  (text) => writeLog('WARN', text),
+  error: (text) => writeLog('ERROR', text),
+  debug: (text) => writeLog('DEBUG', text),
+};
+
 /* ==================== 数据模型 ==================== */
 const users = new Map();       // ws -> { id, name, state, roomId, gameIndex }
 const rooms = new Map();       // roomId -> Room
@@ -127,11 +158,12 @@ function addChat(scope, roomId, name, text) {
 }
 
 wss.on('connection', (ws) => {
+  log.info(`WebSocket 连接建立，当前在线 ${users.size + 1}`);
   send(ws, { event: 'connected' });
 
   ws.on('message', (raw) => {
     let msg;
-    try { msg = JSON.parse(raw); } catch (e) { return; }
+    try { msg = JSON.parse(raw); } catch (e) { log.warn(`收到非法 JSON: ${raw.slice(0,200)}`); return; }
     const user = users.get(ws);
 
     /* ---------- 登录 ---------- */
@@ -143,6 +175,7 @@ wss.on('connection', (ws) => {
       send(ws, buildLobbyState());
       send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
       broadcastLobby(buildLobbyState());
+      log.info(`用户登录: ${name} (uid=${id})`);
       return;
     }
 
@@ -193,6 +226,7 @@ wss.on('connection', (ws) => {
           send(cws, buildRoomList(game.id));
         }
       }
+      log.info(`用户 ${user.name} 创建房间 ${rid} (${game.id})`);
       return;
     }
 
@@ -233,12 +267,14 @@ wss.on('connection', (ws) => {
       broadcastRoom(room.id, buildRoomState(room));
       send(ws, buildRoomState(room));
       send(ws, { event: 'chatHistory', scope: 'room', messages: room.chat });
+      log.info(`用户 ${user.name} 加入房间 ${room.id}`);
       return;
     }
 
     /* ---------- 离开房间 ---------- */
     if (msg.type === 'leaveRoom') {
       if (user.roomId) {
+        const rid = user.roomId;
         leaveRoomInternal(user.id);
         user.state = 'lobby';
         user.roomId = null;
@@ -246,6 +282,7 @@ wss.on('connection', (ws) => {
         send(ws, buildLobbyState());
         send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
         broadcastLobby(buildLobbyState());
+        log.info(`用户 ${user.name} 离开房间 ${rid}`);
       }
       return;
     }
@@ -265,6 +302,7 @@ wss.on('connection', (ws) => {
       broadcastRoom(room.id, buildRoomState(room));
       send(ws, buildRoomState(room));
       send(ws, { event: 'chatHistory', scope: 'room', messages: room.chat });
+      log.info(`用户 ${user.name} 观看房间 ${room.id}`);
 
       // 如果游戏正在进行，发送当前游戏状态
       if (room.status === 'playing' && room.gameInstance) {
@@ -289,6 +327,7 @@ wss.on('connection', (ws) => {
       room.ready.delete(user.id);
       broadcastRoom(room.id, buildRoomState(room));
       send(ws, buildRoomState(room));
+      log.info(`用户 ${user.name} 切换为观战 (${room.id})`);
       return;
     }
 
@@ -304,6 +343,7 @@ wss.on('connection', (ws) => {
       room.players.push(user.id);
       broadcastRoom(room.id, buildRoomState(room));
       send(ws, buildRoomState(room));
+      log.info(`用户 ${user.name} 切换为玩家 (${room.id})`);
       return;
     }
 
@@ -312,9 +352,11 @@ wss.on('connection', (ws) => {
       const room = rooms.get(user.roomId);
       if (!room) { send(ws, { event: 'error', msg: '不在房间中' }); return; }
       if (!room.players.includes(user.id)) { send(ws, { event: 'error', msg: '你不是玩家' }); return; }
-      if (room.ready.has(user.id)) room.ready.delete(user.id);
+      const wasReady = room.ready.has(user.id);
+      if (wasReady) room.ready.delete(user.id);
       else room.ready.add(user.id);
       broadcastRoom(room.id, buildRoomState(room));
+      log.info(`用户 ${user.name} ${wasReady ? '取消准备' : '准备'} (${room.id})`);
       return;
     }
 
@@ -371,6 +413,7 @@ wss.on('connection', (ws) => {
       });
 
       broadcastRoom(room.id, { event: 'gameStarted', roomId: room.id, gameType: room.gameType });
+      log.info(`房间 ${room.id} 游戏开始 (${room.gameType}, ${players.length}人)`);
       return;
     }
 
@@ -403,6 +446,7 @@ wss.on('connection', (ws) => {
         for (const [, u] of users) { if (u.id === uid) u.gameIndex = -1; }
       });
       broadcastRoom(room.id, buildRoomState(room));
+      log.info(`房间 ${room.id} 游戏结束，返回房间`);
       return;
     }
 
@@ -425,6 +469,7 @@ wss.on('connection', (ws) => {
             for (const [, u] of users) { if (u.id === uid) u.gameIndex = -1; }
           });
           broadcastRoom(room.id, buildRoomState(room));
+          log.info(`房间 ${room.id} 人数不足，返回房间`);
           return;
         }
 
@@ -461,6 +506,7 @@ wss.on('connection', (ws) => {
             if (u.id === uid) u.gameIndex = i;
           }
         });
+        log.info(`房间 ${room.id} 下一局开始 (${room.gameType})`);
       } else {
         broadcastRoom(room.id, {
           event: 'roundWait',
@@ -494,6 +540,7 @@ wss.on('connection', (ws) => {
         for (const [, u] of users) { if (u.id === uid) u.gameIndex = -1; }
       });
       broadcastRoom(room.id, buildRoomState(room));
+      log.warn(`房间 ${room.id} 被房主 ${user.name} 强制结束`);
       return;
     }
 
@@ -503,6 +550,7 @@ wss.on('connection', (ws) => {
       if (!room || !room.gameInstance || room.gameInstance.ended) return;
       const pIdx = room.players.indexOf(user.id);
       if (pIdx === -1) return;
+      log.debug(`房间 ${room.id} 收到 ${msg.type} 消息: 玩家${pIdx}`);
       room.gameInstance.handleMessage(pIdx, JSON.stringify(msg));
       return;
     }
@@ -511,9 +559,12 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     const user = users.get(ws);
     if (user) {
+      log.info(`用户断开: ${user.name}`);
       if (user.roomId) leaveRoomInternal(user.id);
       users.delete(ws);
       broadcastLobby(buildLobbyState());
+    } else {
+      log.debug('匿名连接断开');
     }
   });
 });
