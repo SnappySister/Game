@@ -349,23 +349,79 @@
     <h2>四川麻将规则</h2>
     <div class="rule-content">
       <p><b>一、基本规则</b></p>
-      <p>四川麻将（血战到底）使用 108 张牌（万、条、筒各 1-9，各 4 张），无风牌箭牌。</p>
-      <p>支持 2-4 人对局。</p>
-      <p><b>二、定缺</b></p>
-      <p>开局每人必须选择一门花色作为「定缺」，胡牌时手中<b>不能</b>有定缺花色的牌。</p>
-      <p><b>三、摸打</b></p>
+      <p>四川麻将（血战到底）使用 108 张牌（万、条、筒各 1-9，各 4 张），无风牌箭牌。支持 2-4 人对局。</p>
+
+      <p><b>二、换三张</b></p>
+      <p>发牌后进入「换三张」阶段（2 人局跳过）。每人选择 <b>3 张同花色</b> 的牌提交。</p>
+      <p>全部提交后掷骰子决定交换方向：</p>
+      <ul>
+        <li>4 人局：掷 1 个骰子，点数 1/2/3 为<b>顺时针</b>，4/5/6 为<b>逆时针</b></li>
+        <li>3 人局：掷 1 个骰子，奇数<b>顺时针</b>，偶数<b>逆时针</b></li>
+      </ul>
+      <p>换牌完成后进入「定缺」阶段。</p>
+
+      <p><b>三、定缺</b></p>
+      <p>每人必须选择一门花色作为「定缺」，胡牌时手中 <b>不能</b> 有定缺花色的牌。</p>
+      <p>定缺后方可出牌，出牌阶段不能更改定缺。</p>
+
+      <p><b>四、摸打</b></p>
       <p>庄家起手 14 张，其余 13 张。轮到你的回合时摸一张（14 张），选择一张打出。</p>
-      <p>打牌顺序为顺时针轮流出牌。</p>
-      <p><b>四、胡牌</b></p>
-      <p>手牌满足「4 组面子 + 1 对将」即可胡牌。</p>
-      <p>面子可以是<b>顺子</b>（如 1万2万3万）或<b>刻子</b>（如 3个5万）。</p>
+      <p>打牌顺序为顺时针轮流出牌。摸到的牌会有特殊放大提示。</p>
+
+      <p><b>五、碰与杠</b></p>
+      <ul>
+        <li><b>碰</b>：别人打出你手中有 2 张相同的牌时，可组成刻子。碰后需打出 1 张牌。</li>
+        <li><b>明杠</b>：别人打出你手中有 3 张相同的牌时，可组成杠。被杠者付 2 分。</li>
+        <li><b>暗杠</b>：自己手中有 4 张相同的牌时可暗杠。所有未胡玩家各付 2 分。</li>
+        <li><b>加杠</b>：已碰的牌，摸/摸到第 4 张时可加杠。所有未胡玩家各付 1 分。</li>
+        <li><b>抢杠胡</b>：别人加杠时，若有其他玩家能胡这张牌，可抢杠胡，加杠失败。</li>
+      </ul>
+      <p>已胡牌的玩家不再参与任何杠分支付。</p>
+      <p>杠牌后立即摸一张「岭上牌」（牌堆旁），杠属于「刮风下雨」，即时收分。</p>
+
+      <p><b>六、胡牌</b></p>
+      <p>手牌满足「4 组面子 + 1 对将」即可胡牌。面子可以是 <b>顺子</b>（如 1万2万3万）或 <b>刻子</b>（如 3个5万）。</p>
       <p>胡牌方式：自摸（自己摸到）、点炮（别人打出你需要的牌）。</p>
-      <p><b>五、血战到底</b></p>
-      <p>一家胡牌后<b>不结束</b>，其余玩家继续打，直到只剩 1 家未胡或牌摸完。</p>
-      <p>已胡牌的玩家不再参与摸打。</p>
-      <p><b>六、计分</b></p>
-      <p>平胡基础 1 番：点炮时点炮者给 1 分；自摸时其余每人给 1 分。</p>
-      <p>最终按总分排名。</p>
+
+      <p><b>七、血战到底</b></p>
+      <p>一家胡牌后 <b>不结束</b>，其余玩家继续打，直到只剩 1 家未胡或牌摸完。</p>
+      <p>已胡牌的玩家不再参与摸打，但仍可支付杠分。</p>
+
+      <p><b>八、番数系统</b></p>
+      <p>胡牌按总番数计分，公式：<code>得分 = 1 × 2^(总番数 - 1)</code></p>
+      <p>支付方式：自摸时所有未胡玩家各支付得分；点炮时点炮者单独支付得分。</p>
+
+      <p>支持的番型（可叠加）：</p>
+      <table class="rule-table">
+        <tr><th>番型</th><th>番数</th><th>说明</th></tr>
+        <tr><td>平胡</td><td>1</td><td>普通 4 面子 + 1 将</td></tr>
+        <tr><td>对对胡</td><td>2</td><td>全由刻子组成（无顺子）</td></tr>
+        <tr><td>七对</td><td>2</td><td>7 个对子，无碰/杠</td></tr>
+        <tr><td>龙七对</td><td>4</td><td>七对基础上有一组 4 张相同的牌当两对用</td></tr>
+        <tr><td>清一色</td><td>4</td><td>手牌 + 碰杠只有 1 种花色（不含定缺花色）</td></tr>
+        <tr><td>金钩钓</td><td>2</td><td>胡牌时手里只剩 1 张牌单吊，其余全碰/杠出去</td></tr>
+        <tr><td>带根</td><td>+1/根</td><td>每有 1 个暗杠/明杠/加杠额外 +1 番</td></tr>
+        <tr><td>杠上花</td><td>+1</td><td>杠后摸的岭上牌自摸胡</td></tr>
+        <tr><td>杠上炮</td><td>+1</td><td>杠后摸的岭上牌打出被别人胡</td></tr>
+        <tr><td>抢杠胡</td><td>+1</td><td>胡别人加杠的那张牌</td></tr>
+        <tr><td>海底捞月</td><td>+1</td><td>牌堆最后 1 张自摸胡</td></tr>
+        <tr><td>海底炮</td><td>+1</td><td>牌堆最后 1 张打出被别人胡</td></tr>
+        <tr><td>天胡</td><td>+2</td><td>庄家起手 14 张直接胡</td></tr>
+        <tr><td>地胡</td><td>+2</td><td>闲家第一轮摸牌或点炮胡</td></tr>
+      </table>
+      <p>番数示例：清一色(4) + 金钩钓(2) + 带根x1(1) + 杠上花(1) = 8 番 = 128 分</p>
+
+      <p><b>九、查叫 / 查花猪（流局）</b></p>
+      <p>牌摸完无人胡牌时进入流局结算：</p>
+      <ul>
+        <li><b>查花猪</b>：未胡玩家中，手牌或碰杠里还有定缺花色牌的为「花猪」，需赔给每个非花猪玩家 <b>2 分</b>。</li>
+        <li><b>查叫</b>：非花猪玩家之间，未听牌（差 1 张不能胡）的玩家需赔给已听牌的玩家 <b>1 分/家</b>。</li>
+      </ul>
+      <p>结算顺序：先查花猪，再查叫。花猪玩家不参与查叫（已受罚）。</p>
+
+      <p><b>十、听牌提示</b></p>
+      <p>当你手牌距胡牌只差 1 张时，系统会自动提示你「听牌」，并显示缺哪些牌可以胡。</p>
+      <p>听牌提示在出牌前和摸牌后都会显示。</p>
     </div>
     <button id="close-mahjong-rule">知道了</button>
   </div>
@@ -1200,6 +1256,7 @@ function renderMahjongSeat(s, idx) {
   const p = s.players[idx];
   const dq = p.dingque ? `定缺${suitName(p.dingque)}` : '未定缺';
   const huMark = p.isHu ? '胡' : '';
+  const huTileHtml = (p.isHu && p.huTile) ? '<span class="seat-hu-tile">' + tileFaceHTML(p.huTile) + '</span>' : '';
   const dealerMark = p.isDealer ? '庄' : '';
   const currentClass = p.isCurrent ? ' current' : '';
 
@@ -1227,7 +1284,7 @@ function renderMahjongSeat(s, idx) {
   return '<div class="mj-seat' + currentClass + '">' +
     '<div class="mj-seat-hand">' + backsHtml + '<span class="mj-back-count">' + p.handSize + '</span></div>' +
     '<div class="mj-seat-info">' +
-      '<div class="mj-seat-name"><b>' + p.name + '</b>' + (huMark ? '<span class="seat-hu">胡</span>' : '') + (dealerMark ? '<span class="seat-dealer">庄</span>' : '') + '</div>' +
+      '<div class="mj-seat-name"><b>' + p.name + '</b>' + (huMark ? '<span class="seat-hu">胡</span>' : '') + huTileHtml + (dealerMark ? '<span class="seat-dealer">庄</span>' : '') + '</div>' +
       '<div class="mj-seat-detail">' + dq + ' | ' + p.score + '分</div>' +
     '</div>' +
     '<div class="mj-seat-melds">' + meldsHtml + '</div>' +
@@ -1289,7 +1346,7 @@ function renderMahjongState(s) {
     $('#mj-area-right').style.display = 'none';
   }
 
-  // 渲染弃牌堆（最近24张）
+  // 渲染弃牌堆
   $('#mahjong-discards').innerHTML = s.discardPile.map(t =>
     '<div class="mj-tile">' + tileFaceHTML(t, 'sm') + '</div>'
   ).join('');
@@ -1561,7 +1618,7 @@ function renderMahjongSettle(settlement) {
   const box = $('#mahjong-settle-content');
   const sorted = [...settlement.players].sort((a, b) => b.score - a.score);
   let html = '<table class="settle-table">';
-  html += '<tr><th>玩家</th><th>是否胡牌</th><th>番型</th><th>分数</th></tr>';
+  html += '<tr><th>玩家</th><th>胡牌</th><th>番型</th><th>分数</th></tr>';
   for (const p of sorted) {
     const color = p.score > 0 ? '#2ecc71' : (p.score < 0 ? '#e74c3c' : '#aaa');
     const sign = p.score > 0 ? '+' : '';
@@ -1569,7 +1626,8 @@ function renderMahjongSettle(settlement) {
     if (p.fanDetail && p.fanDetail.fans && p.fanDetail.fans.length > 0) {
       fanHtml = `<span style="color:#f1c40f">${p.fanDetail.totalFan}番</span><br><small style="color:#aaa">${p.fanDetail.fans.map(f => f.label).join(' ')}</small>`;
     }
-    html += `<tr><td><b>${p.name}</b></td><td>${p.isHu ? '是' : '否'}</td><td>${fanHtml}</td><td style="color:${color}">${sign}${p.score}</td></tr>`;
+    const huLabel = p.isHu ? ('是 ' + (p.huTile ? tileFaceHTML(p.huTile) : '')) : '否';
+    html += `<tr><td><b>${p.name}</b></td><td>${huLabel}</td><td>${fanHtml}</td><td style="color:${color}">${sign}${p.score}</td></tr>`;
   }
   html += '</table>';
   box.innerHTML = html;

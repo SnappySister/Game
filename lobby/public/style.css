@@ -536,6 +536,12 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
 .rule-content { font-size: 14px; line-height: 1.7; color: #ddd; }
 .rule-content p { margin: 6px 0; }
 .rule-content b { color: #f1c40f; }
+.rule-content ul { margin: 4px 0 8px 20px; padding: 0; }
+.rule-content li { margin: 2px 0; }
+.rule-table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+.rule-table th, .rule-table td { border: 1px solid #555; padding: 5px 8px; text-align: left; }
+.rule-table th { background: #2c3e50; color: #f1c40f; }
+.rule-table td:nth-child(2) { text-align: center; color: #2ecc71; font-weight: bold; }
 .rule-box button { display: block; margin: 14px auto 0; }
 
 /* ===== 德州扑克 ===== */
@@ -794,7 +800,7 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 10px;
   background: #1a5c2a;
   border-radius: 14px;
@@ -892,6 +898,20 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   padding: 0 3px;
   border-radius: 2px;
 }
+.seat-hu-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 28px;
+  background: #fff;
+  border: 1px solid #333;
+  border-radius: 3px;
+  font-size: 12px;
+  margin-left: 2px;
+  vertical-align: middle;
+  color: #2d3436;
+}
 .mj-seat-detail {
   color: #ccc;
   font-size: 11px;
@@ -927,7 +947,23 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
 }
 #mahjong-discards {
   display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;
-  max-width: 90%;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+}
+#mahjong-discards::-webkit-scrollbar {
+  width: 6px;
+}
+#mahjong-discards::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.2);
+  border-radius: 3px;
+}
+#mahjong-discards::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.3);
+  border-radius: 3px;
+}
+#mahjong-discards::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.5);
 }
 
 /* 日志 */

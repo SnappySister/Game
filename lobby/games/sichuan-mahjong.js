@@ -564,6 +564,10 @@ class SichuanMahjongEngine {
     player.melds.push({ type: 'peng', tiles: pengTiles, targetIdx: fromIdx });
     this.logs.push(`${player.name} 碰 ${tileLabel(tile)}`);
 
+    // 从弃牌堆移除被碰的牌
+    const di = this.discardPile.findIndex(t => t.suit === tile.suit && t.rank === tile.rank);
+    if (di !== -1) this.discardPile.splice(di, 1);
+
     this.currentPlayer = idx;
     this.pendingTile = null;
   }
@@ -590,6 +594,8 @@ class SichuanMahjongEngine {
     const gangTiles = [...removed, { ...tile }];
     player.melds.push({ type: 'minggang', tiles: gangTiles, targetIdx: fromIdx });
     this.logs.push(`${player.name} 明杠 ${tileLabel(tile)}`);
+    const di = this.discardPile.findIndex(t => t.suit === tile.suit && t.rank === tile.rank);
+    if (di !== -1) this.discardPile.splice(di, 1);
 
     if (!this.players[fromIdx].isHu) {
       this.players[fromIdx].score -= 2;
@@ -798,6 +804,12 @@ class SichuanMahjongEngine {
       fans.push({ name: 'duiduihu', label: '对对胡', fan: 2 });
     } else {
       fans.push({ name: 'pinghu', label: '平胡', fan: 1 });
+    }
+
+    // 金钩钓：手里只剩1张牌单吊，其余全在碰杠中
+    const handTileCount = isZimo ? player.hand.length - 1 : player.hand.length;
+    if (handTileCount === 1) {
+      fans.push({ name: 'jingoudiao', label: '金钩钓', fan: 2 });
     }
 
     if (isQingYiSe) {
@@ -1105,6 +1117,7 @@ class SichuanMahjongEngine {
         dingque: p.dingque,
         score: p.score,
         isHu: p.isHu,
+        huTile: p.huTile,
         isDealer: i === this.dealerIndex,
         isCurrent: i === this.currentPlayer,
         disconnected: !!p.disconnected,
