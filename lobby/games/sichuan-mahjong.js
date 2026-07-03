@@ -380,7 +380,10 @@ class SichuanMahjongEngine {
       const act = this.pendingActions.get(acted);
       this._log(`[engine] 多人响应 -> P${acted}选择${act}, pendingTile=${tileLabel(this.pendingTile)}`);
       if (act === 'peng') this._doPeng(acted, this.pendingTile);
-      else if (act === 'gang') this._doMingGang(acted, this.pendingTile);
+      else if (act === 'gang') {
+        const hasAction = this._doMingGang(acted, this.pendingTile);
+        if (hasAction) return;
+      }
       this.phase = 'playing';
       this.pendingTile = null;
       this.waitingPlayers = [];
@@ -421,11 +424,6 @@ class SichuanMahjongEngine {
       const tk = msg.tileKey;
       if (!this._canAnGang(idx).includes(tk)) { this._log(`[engine] P${idx}angang拒绝: 不能暗杠${tk}`); return; }
       this._doAnGang(idx, tk);
-      this.phase = 'playing';
-      this.pendingTile = null;
-      this.waitingPlayers = [];
-      this.pendingActions = new Map();
-      this._broadcastAll();
       return;
     }
     if (action === 'jiagang') {
@@ -543,10 +541,11 @@ class SichuanMahjongEngine {
       this._broadcastAll();
       this._send(idx, { event: 'actionRequest', actions, tile, isZimo: canHu, reason, anGangList, jiaGangList });
       this._log(`[engine] P${idx} gang-draw action: canHu=${canHu}, anGang=[${anGangList}], jiaGang=[${jiaGangList}]`);
-      return;
+      return true;
     }
 
     this._broadcastAll();
+    return false;
   }
 
   _shouldEnd() {
@@ -669,7 +668,13 @@ class SichuanMahjongEngine {
 
     this.currentPlayer = idx;
     this.pendingTile = null;
-    this._drawExtra(idx);
+    const hasAction = this._drawExtra(idx);
+    if (!hasAction) {
+      this.phase = 'playing';
+      this.waitingPlayers = [];
+      this.pendingActions = new Map();
+      this._broadcastAll();
+    }
   }
 
   _doAnGang(idx, tk) {
@@ -707,7 +712,14 @@ class SichuanMahjongEngine {
     player.score += gain;
     this.logs.push(`${player.name} 暗杠收分 +${gain}`);
 
-    this._drawExtra(idx);
+    const hasAction = this._drawExtra(idx);
+    if (!hasAction) {
+      this.phase = 'playing';
+      this.pendingTile = null;
+      this.waitingPlayers = [];
+      this.pendingActions = new Map();
+      this._broadcastAll();
+    }
   }
 
   _doJiaGang(idx, pengMeldIdx) {
@@ -767,7 +779,14 @@ class SichuanMahjongEngine {
     this.players[idx].score += gain;
     this.logs.push(`${this.players[idx].name} 加杠收分 +${gain}`);
     this._log(`[engine] P${idx}加杠完成${tileLabel(tile)}, 收${gain}分`);
-    this._drawExtra(idx);
+    const hasAction = this._drawExtra(idx);
+    if (!hasAction) {
+      this.phase = 'playing';
+      this.pendingTile = null;
+      this.waitingPlayers = [];
+      this.pendingActions = new Map();
+      this._broadcastAll();
+    }
   }
 
   /* ==================== 胡牌结算 ==================== */

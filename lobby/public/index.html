@@ -1558,7 +1558,7 @@ function renderMahjongActions() {
         const me = st && st.players[myGameIndex];
         const meld = me && me.melds[idx];
         if (meld) {
-          html += `<button class="poker-btn" style="background:#9b59b6" onclick="sendMahjongSelfAction('jiagang',{pengMeldIdx:${idx}})">加杠 ${tileLabel(meld.tiles[0])}</button>`;
+          html += `<button class="poker-btn" style="background:#9b59b6" onclick="sendMahjongSelfAction('jiagang',{pengMeldIdx:${idx}})">加杠 ${meld.label || '?'}</button>`;
         }
       }
     }
