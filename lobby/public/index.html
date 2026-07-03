@@ -1523,39 +1523,16 @@ function renderMahjongActions() {
   if (mahjongActionRequest) {
     const req = mahjongActionRequest;
     let html = '<div class="mj-action-info">';
-    if (req.reason === 'zimo') html += '你摸到了需要的牌！';
+    if (req.reason === 'zimo') html += '你摸到了需要的牌！' + ((req.anGangList && req.anGangList.length) || (req.jiaGangList && req.jiaGangList.length) ? '（同时可暗杠/加杠）' : '');
     else if (req.reason === 'qianggang') html += tileLabel(req.tile) + ' 抢杠胡！';
     else if (req.reason === 'selfGang') html += '请选择杠牌操作';
-    if (req.reason === 'peng') html += tileLabel(req.tile) + ' 可碰';
+    else if (req.reason === 'peng') html += tileLabel(req.tile) + ' 可碰';
     else if (req.reason === 'minggang') html += tileLabel(req.tile) + ' 可明杠';
     else if (req.reason === 'peng_gang') html += tileLabel(req.tile) + ' 可碰/杠';
     else html += tileLabel(req.tile) + ' 可胡';
     html += '</div>';
 
-    // 自己回合的暗杠/加杠
-    if (req.reason === 'selfGang') {
-      if (req.anGangList && req.anGangList.length > 0) {
-        for (const tk of req.anGangList) {
-          const [suit, rankStr] = tk.split('_');
-          html += `<button class="poker-btn" style="background:#8e44ad" onclick="sendMahjongSelfAction('angang',{tileKey:'${tk}'})">暗杠 ${rankStr}${suitName(suit)}</button>`;
-        }
-      }
-      if (req.jiaGangList && req.jiaGangList.length > 0) {
-        for (const idx of req.jiaGangList) {
-          const st = mahjongState;
-          const me = st && st.players[myGameIndex];
-          const meld = me && me.melds[idx];
-          if (meld) {
-            html += `<button class="poker-btn" style="background:#9b59b6" onclick="sendMahjongSelfAction('jiagang',{pengMeldIdx:${idx}})">加杠 ${tileLabel(meld.tiles[0])}</button>`;
-          }
-        }
-      }
-      html += '<button class="poker-btn" style="background:#95a5a6" onclick="sendMahjongAction(\'pass\')">过</button>';
-      box.innerHTML = html;
-      return;
-    }
-
-    // 普通操作按钮
+    // 普通操作按钮（胡/碰/杠/过）
     for (const act of req.actions) {
       if (act === 'hu') {
         html += '<button class="poker-btn" style="background:#e74c3c" onclick="sendMahjongAction(\'hu\')">胡</button>';
@@ -1565,6 +1542,24 @@ function renderMahjongActions() {
         html += '<button class="poker-btn" style="background:#f39c12" onclick="sendMahjongAction(\'peng\')">碰</button>';
       } else if (act === 'gang') {
         html += '<button class="poker-btn" style="background:#8e44ad" onclick="sendMahjongAction(\'gang\')">杠</button>';
+      }
+    }
+
+    // 自己回合的暗杠/加杠（可与胡同时显示）
+    if (req.anGangList && req.anGangList.length > 0) {
+      for (const tk of req.anGangList) {
+        const [suit, rankStr] = tk.split('_');
+        html += `<button class="poker-btn" style="background:#8e44ad" onclick="sendMahjongSelfAction('angang',{tileKey:'${tk}'})">暗杠 ${rankStr}${suitName(suit)}</button>`;
+      }
+    }
+    if (req.jiaGangList && req.jiaGangList.length > 0) {
+      for (const idx of req.jiaGangList) {
+        const st = mahjongState;
+        const me = st && st.players[myGameIndex];
+        const meld = me && me.melds[idx];
+        if (meld) {
+          html += `<button class="poker-btn" style="background:#9b59b6" onclick="sendMahjongSelfAction('jiagang',{pengMeldIdx:${idx}})">加杠 ${tileLabel(meld.tiles[0])}</button>`;
+        }
       }
     }
     box.innerHTML = html;

@@ -478,26 +478,24 @@ class SichuanMahjongEngine {
     this._log(`[engine] P${idx}摸牌 ${tileLabel(tile)}, 手牌=${player.hand.length}, 牌堆剩${this.deck.length}`);
 
     const hasDingqueInMelds = player.melds.some(m => m.tiles.some(t => t.suit === player.dingque));
-    if (!hasDingqueInMelds && this._canHu(player.hand, player.dingque)) {
-      this.phase = 'waitAction';
-      this.waitingPlayers = [idx];
-      this.pendingActions = new Map();
-      this.pendingTile = tile;
-      this._broadcastAll();
-      this._send(idx, { event: 'actionRequest', actions: ['hu', 'pass'], tile, isZimo: true, reason: 'zimo' });
-      this._log(`[engine] P${idx}可自摸, tile=${tileLabel(tile)}`);
-      return;
-    }
-
+    const canHu = !hasDingqueInMelds && this._canHu(player.hand, player.dingque);
     const anGangList = this._canAnGang(idx);
     const jiaGangList = this._canJiaGang(idx);
-    if (anGangList.length > 0 || jiaGangList.length > 0) {
+
+    if (canHu || anGangList.length > 0 || jiaGangList.length > 0) {
       this.phase = 'waitAction';
       this.waitingPlayers = [idx];
       this.pendingActions = new Map();
+      if (canHu) this.pendingTile = tile;
+
+      const actions = [];
+      if (canHu) actions.push('hu');
+      actions.push('pass');
+      const reason = canHu ? 'zimo' : 'selfGang';
+
       this._broadcastAll();
-      this._send(idx, { event: 'actionRequest', actions: ['pass'], anGangList, jiaGangList, reason: 'selfGang' });
-      this._log(`[engine] P${idx}可暗杠/加杠: anGang=${anGangList.join(',')}, jiaGang=${jiaGangList.join(',')}`);
+      this._send(idx, { event: 'actionRequest', actions, tile, isZimo: canHu, reason, anGangList, jiaGangList });
+      this._log(`[engine] P${idx} self action: canHu=${canHu}, anGang=[${anGangList}], jiaGang=[${jiaGangList}]`);
       return;
     }
 
@@ -784,6 +782,13 @@ class SichuanMahjongEngine {
       const k = tileKey(t);
       count[k] = (count[k] || 0) + 1;
     }
+
+    // 七对：7种牌各2张
+    const values = Object.values(count);
+    if (values.length === 7 && values.every(v => v === 2)) return true;
+
+    // 龙七对：6种牌，其中1种4张，其余5种各2张
+    if (values.length === 6 && values.some(v => v === 4) && values.filter(v => v === 2).length === 5) return true;
 
     for (const key of Object.keys(count)) {
       if (count[key] >= 2) {
