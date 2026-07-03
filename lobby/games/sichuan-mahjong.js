@@ -14,8 +14,9 @@ function suitLabel(suit) {
 }
 
 class SichuanMahjongEngine {
-  constructor(players, sendFn, initialScores = []) {
+  constructor(players, sendFn, initialScores = [], logFn = null) {
     this._send = sendFn;
+    this._log = logFn || (() => {});
     this.playerCount = players.length;
     this.players = players.map((p, i) => ({
       ...p,
@@ -87,6 +88,7 @@ class SichuanMahjongEngine {
     this.exchangeCards = [];
     this.diceResult = null;
 
+    this._log(`[engine] 游戏开始(${this.players.length}人), 庄=P${this.dealerIndex}, 牌堆=${this.deck.length}`);
     this._broadcastAll();
   }
 
@@ -118,7 +120,7 @@ class SichuanMahjongEngine {
 
   /* ==================== 消息入口 ==================== */
   handleMessage(playerIndex, rawMsg) {
-    if (this.ended) return;
+    if (this.ended) { this._log(`[engine] 游戏已结束，忽略消息`); return; }
     const msg = JSON.parse(rawMsg);
 
     if (msg.type === 'dingque') {
@@ -131,13 +133,15 @@ class SichuanMahjongEngine {
       this._handleAction(playerIndex, msg);
     } else if (msg.type === 'selfAction') {
       this._handleSelfAction(playerIndex, msg);
+    } else {
+      this._log(`[engine] 未知消息类型: ${msg.type}`);
     }
   }
 
   _handleDingque(idx, msg) {
-    if (this.phase !== 'dingque') return;
+    if (this.phase !== 'dingque') { this._log(`[engine] P${idx}定缺拒绝: phase=${this.phase}`); return; }
     const suit = msg.suit;
-    if (!SUITS.includes(suit)) return;
+    if (!SUITS.includes(suit)) { this._log(`[engine] P${idx}定缺拒绝: 非法花色${suit}`); return; }
 
     this.players[idx].dingque = suit;
     this.logs.push(`${this.players[idx].name} 定缺${suitLabel(suit)}`);
@@ -158,19 +162,17 @@ class SichuanMahjongEngine {
   }
 
   _handleExchange(idx, msg) {
-    if (this.phase !== 'exchange') return;
+    if (this.phase !== 'exchange') { this._log(`[engine] P${idx}exchange拒绝: phase=${this.phase}`); return; }
     const cards = msg.cards;
-    if (!Array.isArray(cards) || cards.length !== 3) return;
+    if (!Array.isArray(cards) || cards.length !== 3) { this._log(`[engine] P${idx}exchange拒绝: 牌数量=${cards ? cards.length : 'null'}`); return; }
     const player = this.players[idx];
-    // 必须是同花色
     const suit = cards[0].suit;
-    if (!SUITS.includes(suit)) return;
-    if (!cards.every(c => c.suit === suit)) return;
-    // 必须都在手牌中
+    if (!SUITS.includes(suit)) { this._log(`[engine] P${idx}exchange拒绝: 非法花色${suit}`); return; }
+    if (!cards.every(c => c.suit === suit)) { this._log(`[engine] P${idx}exchange拒绝: 不是同花色`); return; }
     const handCopy = [...player.hand];
     for (const c of cards) {
       const ci = handCopy.findIndex(t => t.suit === c.suit && t.rank === c.rank);
-      if (ci === -1) return;
+      if (ci === -1) { this._log(`[engine] P${idx}exchange拒绝: 手牌中没有${tileLabel(c)}`); return; }
       handCopy.splice(ci, 1);
     }
 
@@ -190,6 +192,7 @@ class SichuanMahjongEngine {
     this.diceResult = { dice, direction };
     const dirLabel = { shun: '顺时针', ni: '逆时针' };
     this.logs.push(`掷骰子 ${dice} 点，${dirLabel[direction]}交换`);
+    this._log(`[engine] 换三张: 骰子${dice}点, 方向=${direction}(${dirLabel[direction]})`);
     this._broadcastAll();
 
     const n = this.players.length;
@@ -226,15 +229,18 @@ class SichuanMahjongEngine {
   }
 
   _handleDiscard(idx, msg) {
-    if (this.phase !== 'playing') return;
-    if (this.currentPlayer !== idx) return;
+    if (this.phase !== 'playing') { this._log(`[engine] P${idx}discard拒绝: phase=${this.phase}不是playing`); return; }
+    if (this.currentPlayer !== idx) { this._log(`[engine] P${idx}discard拒绝: 不是当前玩家(current=${this.currentPlayer})`); return; }
 
     const tile = msg.tile;
-    if (!tile || !SUITS.includes(tile.suit) || !RANKS.includes(tile.rank)) return;
+    if (!tile || !SUITS.includes(tile.suit) || !RANKS.includes(tile.rank)) {
+      this._log(`[engine] P${idx}discard拒绝: 非法牌${tile ? tileLabel(tile) : 'null'}`);
+      return;
+    }
 
     const player = this.players[idx];
     const handIdx = player.hand.findIndex(t => t.suit === tile.suit && t.rank === tile.rank);
-    if (handIdx === -1) return;
+    if (handIdx === -1) { this._log(`[engine] P${idx}discard拒绝: 手牌中没有${tileLabel(tile)}`); return; }
 
     const removedTile = player.hand.splice(handIdx, 1)[0];
     this._sortHand(player.hand);
@@ -271,6 +277,7 @@ class SichuanMahjongEngine {
       for (const i of huCandidates) {
         this._send(i, { event: 'actionRequest', actions: ['hu', 'pass'], tile, reason: 'dianpao' });
       }
+      this._log(`[engine] P${idx}出${tileLabel(tile)} -> 点炮候选=${huCandidates.join(',')}`);
       return;
     }
 
@@ -293,17 +300,19 @@ class SichuanMahjongEngine {
         actions.push('pass');
         const reason = canGang && canPeng ? 'peng_gang' : (canGang ? 'minggang' : 'peng');
         this._send(i, { event: 'actionRequest', actions, tile, reason });
+        this._log(`[engine] P${idx}出${tileLabel(tile)} -> P${i}可${actions.join('/')}`);
         return;
       }
     }
 
     // 无人可响应
+    this._log(`[engine] P${idx}出${tileLabel(tile)} -> 无人响应, 进下家`);
     this._nextPlayer();
   }
 
   _handleAction(idx, msg) {
-    if (this.phase !== 'waitAction') return;
-    if (!this.waitingPlayers.includes(idx)) return;
+    if (this.phase !== 'waitAction') { this._log(`[engine] P${idx}action拒绝: phase=${this.phase}`); return; }
+    if (!this.waitingPlayers.includes(idx)) { this._log(`[engine] P${idx}action拒绝: 不在waitingPlayers中`); return; }
     const action = msg.action;
 
     const isSelfAction = this.waitingPlayers.length === 1 && this.waitingPlayers[0] === this.currentPlayer;
@@ -311,6 +320,12 @@ class SichuanMahjongEngine {
     this.pendingActions.set(idx, action);
 
     if (isSelfAction) {
+      if (action === 'hu' || action === 'pass') {
+        // 允许
+      } else if (!['angang', 'jiagang'].includes(action)) {
+        this._log(`[engine] P${idx}action拒绝: 自操作非法action=${action}`);
+        return;
+      }
       if (action === 'hu') {
         this._doHu(idx, this.pendingTile || this.players[idx].hand[this.players[idx].hand.length - 1], true);
         this.phase = 'playing';
@@ -331,7 +346,10 @@ class SichuanMahjongEngine {
     }
 
     // 他人响应（点炮/抢杠胡/碰/明杠）
-    if (!['hu', 'pass', 'peng', 'gang'].includes(action)) return;
+    if (!['hu', 'pass', 'peng', 'gang'].includes(action)) {
+      this._log(`[engine] P${idx}action拒绝: 响应阶段非法action=${action}`);
+      return;
+    }
 
     if (action === 'hu') {
       this._doHu(idx, this.pendingTile, false);
@@ -358,6 +376,7 @@ class SichuanMahjongEngine {
     const acted = this.waitingPlayers.find(i => this.pendingActions.get(i) !== 'pass');
     if (acted !== undefined) {
       const act = this.pendingActions.get(acted);
+      this._log(`[engine] 多人响应 -> P${acted}选择${act}, pendingTile=${tileLabel(this.pendingTile)}`);
       if (act === 'peng') this._doPeng(acted, this.pendingTile);
       else if (act === 'gang') this._doMingGang(acted, this.pendingTile);
       this.phase = 'playing';
@@ -370,6 +389,7 @@ class SichuanMahjongEngine {
 
     // 全部 pass
     if (this.jiagangPending) {
+      this._log(`[engine] 全部pass -> 加杠继续 P${this.jiagangPending.idx}`);
       const { idx: gangIdx, tile, pengMeldIdx } = this.jiagangPending;
       this._completeJiaGang(gangIdx, tile, pengMeldIdx);
       this.jiagangPending = null;
@@ -381,6 +401,7 @@ class SichuanMahjongEngine {
       return;
     }
 
+    this._log(`[engine] 全部pass -> 进下家`);
     this.phase = 'playing';
     this.pendingTile = null;
     this.waitingPlayers = [];
@@ -391,10 +412,10 @@ class SichuanMahjongEngine {
   _handleSelfAction(idx, msg) {
     const action = msg.action;
     if (action === 'angang') {
-      if (this.phase !== 'waitAction') return;
-      if (!this.waitingPlayers.includes(idx)) return;
+      if (this.phase !== 'waitAction') { this._log(`[engine] P${idx}angang拒绝: phase=${this.phase}`); return; }
+      if (!this.waitingPlayers.includes(idx)) { this._log(`[engine] P${idx}angang拒绝: 不在waitingPlayers`); return; }
       const tk = msg.tileKey;
-      if (!this._canAnGang(idx).includes(tk)) return;
+      if (!this._canAnGang(idx).includes(tk)) { this._log(`[engine] P${idx}angang拒绝: 不能暗杠${tk}`); return; }
       this._doAnGang(idx, tk);
       this.phase = 'playing';
       this.pendingTile = null;
@@ -404,10 +425,10 @@ class SichuanMahjongEngine {
       return;
     }
     if (action === 'jiagang') {
-      if (this.phase !== 'waitAction') return;
-      if (!this.waitingPlayers.includes(idx)) return;
+      if (this.phase !== 'waitAction') { this._log(`[engine] P${idx}jiagang拒绝: phase=${this.phase}`); return; }
+      if (!this.waitingPlayers.includes(idx)) { this._log(`[engine] P${idx}jiagang拒绝: 不在waitingPlayers`); return; }
       const pengMeldIdx = msg.pengMeldIdx;
-      if (!this._canJiaGang(idx).includes(pengMeldIdx)) return;
+      if (!this._canJiaGang(idx).includes(pengMeldIdx)) { this._log(`[engine] P${idx}jiagang拒绝: 不能加杠meld=${pengMeldIdx}`); return; }
       this._doJiaGang(idx, pengMeldIdx);
       return;
     }
@@ -433,12 +454,14 @@ class SichuanMahjongEngine {
     }
 
     this.currentPlayer = next;
+    this._log(`[engine] 轮到P${next}, 未胡=${this.players.filter(p => !p.isHu).length}人`);
     this._draw(next);
   }
 
   _draw(idx) {
     if (this.deck.length === 0) {
       this.logs.push('牌堆已空');
+      this._log(`[engine] P${idx}摸牌: 牌堆已空 -> 流局`);
       this._checkFlowEnd();
       return;
     }
@@ -452,6 +475,7 @@ class SichuanMahjongEngine {
     player.hand.push(tile);
     this._sortHand(player.hand);
     this.logs.push(`${player.name} 摸牌`);
+    this._log(`[engine] P${idx}摸牌 ${tileLabel(tile)}, 手牌=${player.hand.length}, 牌堆剩${this.deck.length}`);
 
     const hasDingqueInMelds = player.melds.some(m => m.tiles.some(t => t.suit === player.dingque));
     if (!hasDingqueInMelds && this._canHu(player.hand, player.dingque)) {
@@ -461,6 +485,7 @@ class SichuanMahjongEngine {
       this.pendingTile = tile;
       this._broadcastAll();
       this._send(idx, { event: 'actionRequest', actions: ['hu', 'pass'], tile, isZimo: true, reason: 'zimo' });
+      this._log(`[engine] P${idx}可自摸, tile=${tileLabel(tile)}`);
       return;
     }
 
@@ -472,6 +497,7 @@ class SichuanMahjongEngine {
       this.pendingActions = new Map();
       this._broadcastAll();
       this._send(idx, { event: 'actionRequest', actions: ['pass'], anGangList, jiaGangList, reason: 'selfGang' });
+      this._log(`[engine] P${idx}可暗杠/加杠: anGang=${anGangList.join(',')}, jiaGang=${jiaGangList.join(',')}`);
       return;
     }
 
@@ -481,6 +507,7 @@ class SichuanMahjongEngine {
   _drawExtra(idx) {
     if (this.deck.length === 0) {
       this.logs.push('牌堆已空');
+      this._log(`[engine] P${idx}摸岭上牌: 牌堆已空 -> 结束`);
       this._endGame();
       return;
     }
@@ -493,6 +520,7 @@ class SichuanMahjongEngine {
     player.hand.push(tile);
     this._sortHand(player.hand);
     this.logs.push(`${player.name} 摸岭上牌`);
+    this._log(`[engine] P${idx}摸岭上牌 ${tileLabel(tile)}, 手牌=${player.hand.length}`);
   }
 
   _shouldEnd() {
@@ -571,6 +599,7 @@ class SichuanMahjongEngine {
     const pengTiles = [...removed, { ...tile }];
     player.melds.push({ type: 'peng', tiles: pengTiles, targetIdx: fromIdx });
     this.logs.push(`${player.name} 碰 ${tileLabel(tile)}`);
+    this._log(`[engine] P${idx}碰P${fromIdx}的${tileLabel(tile)}, 手牌剩${player.hand.length}`);
 
     // 从弃牌堆移除被碰的牌
     const di = this.discardPile.findIndex(t => t.suit === tile.suit && t.rank === tile.rank);
@@ -602,6 +631,7 @@ class SichuanMahjongEngine {
     const gangTiles = [...removed, { ...tile }];
     player.melds.push({ type: 'minggang', tiles: gangTiles, targetIdx: fromIdx });
     this.logs.push(`${player.name} 明杠 ${tileLabel(tile)}`);
+    this._log(`[engine] P${idx}明杠P${fromIdx}的${tileLabel(tile)}, 手牌剩${player.hand.length}`);
     const di = this.discardPile.findIndex(t => t.suit === tile.suit && t.rank === tile.rank);
     if (di !== -1) this.discardPile.splice(di, 1);
 
@@ -632,6 +662,7 @@ class SichuanMahjongEngine {
     if (removed.length !== 4) {
       player.hand.push(...removed);
       this._sortHand(player.hand);
+      this._log(`[engine] P${idx}暗杠${suit}_${rank}失败: 手牌不足4张`);
       return;
     }
     this._sortHand(player.hand);
@@ -642,6 +673,7 @@ class SichuanMahjongEngine {
 
     player.melds.push({ type: 'angang', tiles: removed, targetIdx: null });
     this.logs.push(`${player.name} 暗杠 ${tileLabel({ suit, rank })}`);
+    this._log(`[engine] P${idx}暗杠${suit}_${rank}, 手牌剩${player.hand.length}`);
 
     const losers = this.players.filter((p, i) => i !== idx && !p.isHu);
     const gain = losers.length * 2;
@@ -669,6 +701,7 @@ class SichuanMahjongEngine {
     pengMeld.sourcePengIdx = pengMeldIdx;
 
     this.logs.push(`${player.name} 加杠 ${tileLabel(tile)}`);
+    this._log(`[engine] P${idx}加杠${tileLabel(tile)}, meld=${pengMeldIdx}`);
     this._broadcastAll();
 
     // 抢杠胡检测
@@ -694,6 +727,7 @@ class SichuanMahjongEngine {
       for (const i of huCandidates) {
         this._send(i, { event: 'actionRequest', actions: ['hu', 'pass'], tile: removedTile, reason: 'qianggang' });
       }
+      this._log(`[engine] P${idx}加杠 -> 抢杠胡候选=${huCandidates.join(',')}`);
       return;
     }
 
@@ -706,6 +740,7 @@ class SichuanMahjongEngine {
     for (const p of losers) p.score -= 1;
     this.players[idx].score += gain;
     this.logs.push(`${this.players[idx].name} 加杠收分 +${gain}`);
+    this._log(`[engine] P${idx}加杠完成${tileLabel(tile)}, 收${gain}分`);
     this._drawExtra(idx);
   }
 
@@ -736,6 +771,7 @@ class SichuanMahjongEngine {
 
     const fanStr = fans.map(f => f.label).join(' ');
     this.logs.push(`${player.name} 胡了${isZimo ? '（自摸）' : '（点炮）'} +${gained} [${totalFan}番 ${fanStr}]`);
+    this._log(`[engine] P${idx}胡牌${isZimo ? '(自摸)' : '(点炮)'} tile=${tileLabel(tile)}, ${totalFan}番, ${fans.map(f => f.label).join('+')}, 得${gained}分, 总${player.score}分`);
   }
 
   /* ==================== 胡牌检测 ==================== */
@@ -993,7 +1029,7 @@ class SichuanMahjongEngine {
 
   /* ==================== 结束 ==================== */
   _checkFlowEnd() {
-    if (this.ended) return;
+    if (this.ended) { this._log(`[engine] 流局检查忽略: 已结束`); return; }
 
     const huaZhuPlayers = [];
     const nonHuaZhuPlayers = [];
@@ -1042,6 +1078,8 @@ class SichuanMahjongEngine {
       this.logs.push(`${this.players[jIdx].name} 下叫`);
     }
 
+    this._log(`[engine] 流局结算: 花猪=${huaZhuPlayers.join(',')}, 听牌=${jiaoPlayers.join(',')}, 未听=${noJiaoPlayers.join(',')}`);
+
     this._endGame(true);
   }
 
@@ -1050,6 +1088,7 @@ class SichuanMahjongEngine {
     this.ended = true;
     this.phase = 'ended';
     this.logs.push(isFlowEnd ? '流局结束' : '本局结束');
+    this._log(`[engine] 结束(${isFlowEnd ? '流局' : '正常'}), 各玩家分数:` + this.players.map((p, i) => `P${i}=${p.score}${p.isHu ? '(胡)' : ''}`).join(', '));
     this._broadcastAll();
 
     const settlement = {
@@ -1070,12 +1109,13 @@ class SichuanMahjongEngine {
 
   /* ==================== 断线 ==================== */
   playerDisconnected(idx) {
-    if (this.ended || idx < 0 || idx >= this.players.length) return;
+    if (this.ended || idx < 0 || idx >= this.players.length) { this._log(`[engine] P${idx}断线忽略: ended=${this.ended}`); return; }
     const p = this.players[idx];
-    if (!p || p.isHu) return;
+    if (!p || p.isHu) { this._log(`[engine] P${idx}断线忽略: 不存在或已胡`); return; }
     p.disconnected = true;
     p.isHu = true;
     this.logs.push(`${p.name} 离开，自动退出`);
+    this._log(`[engine] P${idx}断线, 自动设为已胡, phase=${this.phase}`);
 
     if (this._shouldEnd()) {
       this._endGame();

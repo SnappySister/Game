@@ -401,7 +401,7 @@ wss.on('connection', (ws) => {
           if (found) p.chips = found.chips;
         });
       } else if (room.gameType === 'mahjong') {
-        room.gameInstance = new SichuanMahjongEngine(players, sendToPlayer, prevMahjongScores);
+        room.gameInstance = new SichuanMahjongEngine(players, sendToPlayer, prevMahjongScores, (msg) => log.debug(msg));
       }
       room.gameInstance.start();
 
@@ -496,7 +496,7 @@ wss.on('connection', (ws) => {
             });
           } else if (room.gameType === 'mahjong') {
             const prevScores = room.gameInstance.players.map(p => p.score);
-            room.gameInstance = new SichuanMahjongEngine(players, sendToPlayer, prevScores);
+            room.gameInstance = new SichuanMahjongEngine(players, sendToPlayer, prevScores, (msg) => log.debug(msg));
           }
         }
 
@@ -547,9 +547,11 @@ wss.on('connection', (ws) => {
     /* ---------- 游戏内消息 ---------- */
     if (msg.type === 'play' || msg.type === 'discard' || msg.type === 'endTurn' || msg.type === 'bet' || msg.type === 'dingque' || msg.type === 'action' || msg.type === 'selfAction' || msg.type === 'exchange') {
       const room = rooms.get(user.roomId);
-      if (!room || !room.gameInstance || room.gameInstance.ended) return;
+      if (!room) { log.warn(`P${user.gameIndex}(${user.name}) ${msg.type} 拒绝: 不在房间中`); return; }
+      if (!room.gameInstance) { log.warn(`P${user.gameIndex}(${user.name}) ${msg.type} 拒绝: 无游戏实例 room=${room.id}`); return; }
+      if (room.gameInstance.ended) { log.warn(`P${user.gameIndex}(${user.name}) ${msg.type} 拒绝: 游戏已结束 room=${room.id}`); return; }
       const pIdx = room.players.indexOf(user.id);
-      if (pIdx === -1) return;
+      if (pIdx === -1) { log.warn(`${user.name} ${msg.type} 拒绝: 不是玩家 room=${room.id}`); return; }
       log.debug(`房间 ${room.id} 收到 ${msg.type} 消息: 玩家${pIdx}`);
       room.gameInstance.handleMessage(pIdx, JSON.stringify(msg));
       return;
