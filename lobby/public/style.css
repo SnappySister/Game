@@ -732,3 +732,390 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   .log-box { font-size: 11px; padding: 6px; }
 }
 
+/* ==================== 四川麻将 ==================== */
+#view-mahjong {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: #1e5128;
+}
+#mahjong-top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; background: #163d1e; border-bottom: 1px solid #2e6b35;
+  color: #fff; font-size: 14px;
+}
+.mahjong-top-btns { display: flex; gap: 8px; }
+.mahjong-top-btns button {
+  background: #27ae60; border: none; color: #fff; padding: 6px 12px;
+  border-radius: 4px; cursor: pointer; font-size: 13px;
+}
+.mahjong-top-btns button:hover { background: #2ecc71; }
+
+/* ========== 麻将桌面整体布局 ========== */
+#mahjong-desk {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 120px 1fr 120px;
+  grid-template-rows: auto 1fr;
+  gap: 8px;
+  padding: 8px;
+  overflow: auto;
+}
+
+/* 对家 */
+#mj-area-opposite {
+  grid-column: 2;
+  display: flex;
+  justify-content: center;
+}
+
+/* 上家（左侧） */
+#mj-area-left {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 下家（右侧） */
+#mj-area-right {
+  grid-column: 3;
+  grid-row: 1 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 桌面中心 */
+#mj-desk-centre {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #1a5c2a;
+  border-radius: 14px;
+  border: 2px solid #2e7d42;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.2);
+  padding: 12px;
+}
+
+/* ========== 对手座位 ========== */
+.mj-seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 8px;
+  color: #fff;
+}
+.mj-seat.current {
+  background: rgba(46, 204, 113, 0.12);
+  border: 2px solid #2ecc71;
+}
+
+/* 对手手牌背面 */
+.mj-seat-hand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  position: relative;
+}
+.mj-backs-row {
+  display: inline-flex;
+  position: relative;
+  align-items: flex-end;
+  height: 34px;
+}
+.mj-back-mini {
+  width: 22px;
+  height: 32px;
+  background: #1a252f;
+  border: 1px solid #2c3e50;
+  border-radius: 3px;
+  margin-left: -10px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  position: relative;
+}
+.mj-back-mini::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px; height: 8px;
+  background: #8e44ad;
+  border-radius: 50%;
+  border: 1px solid #9b59b6;
+}
+.mj-back-mini:first-child { margin-left: 0; }
+.mj-back-count {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: #fff;
+  background: rgba(0,0,0,0.7);
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* 对手信息 */
+.mj-seat-info {
+  text-align: center;
+  font-size: 12px;
+}
+.mj-seat-name {
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.seat-hu {
+  color: #f1c40f;
+  font-size: 10px;
+  border: 1px solid #f1c40f;
+  padding: 0 3px;
+  border-radius: 2px;
+}
+.seat-dealer {
+  color: #e74c3c;
+  font-size: 10px;
+  border: 1px solid #e74c3c;
+  padding: 0 3px;
+  border-radius: 2px;
+}
+.mj-seat-detail {
+  color: #ccc;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+/* 对手碰杠 */
+.mj-seat-melds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  max-width: 100%;
+}
+.mj-seat-meld {
+  display: flex;
+  gap: 1px;
+}
+
+/* ========== 麻将牌 ========== */
+.mj-tile {
+  width: 36px; height: 48px;
+  background: #fff; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: #333;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  user-select: none;
+}
+
+/* 弃牌堆 */
+#mahjong-discard-info {
+  color: #aaddbb; font-size: 13px;
+}
+#mahjong-discards {
+  display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;
+  max-width: 90%;
+}
+
+/* 日志 */
+#mahjong-log {
+  max-height: 80px; background: rgba(0,0,0,0.25);
+  margin: 0 12px; border-radius: 6px;
+}
+
+/* ========== 手牌区 ========== */
+#mahjong-self-hand {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 10px 12px; justify-content: center;
+  background: #163d1e; border-top: 1px solid #2e6b35;
+}
+#mahjong-ting-hint {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #2c1a0a;
+  border-top: 1px solid #5a3a1a;
+  color: #f1c40f;
+  font-size: 13px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+#mahjong-ting-hint .ting-label {
+  background: #e74c3c;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 12px;
+  margin-right: 4px;
+}
+#mahjong-ting-hint .mj-tile-face {
+  transform: scale(0.85);
+}
+#mahjong-exchange-bar {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #2c1a0a;
+  border-top: 1px solid #5a3a1a;
+  color: #f1c40f;
+  font-size: 14px;
+  justify-content: center;
+}
+#mahjong-exchange-bar .dice-result {
+  background: #c0392b;
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-weight: bold;
+  font-size: 15px;
+}
+.mj-hand-tile {
+  width: 44px; height: 60px;
+  background: #fff; border-radius: 5px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  user-select: none; cursor: default;
+}
+.mj-hand-tile.new-drawn {
+  border: 3px solid #2ecc71;
+  box-shadow: 0 0 8px #2ecc71;
+}
+.mj-hand-tile.clickable {
+  cursor: pointer; border: 2px solid #f1c40f;
+}
+.mj-hand-tile.clickable:hover {
+  background: #fffbea; transform: translateY(-4px);
+}
+.mj-hand-tile.selected {
+  border: 3px solid #e74c3c;
+  background: #ffeaea;
+  transform: translateY(-6px);
+}
+.mj-hand-tile.exchange-selected {
+  border: 3px solid #3498db;
+  background: #eaf2ff;
+  transform: translateY(-4px);
+  box-shadow: 0 0 8px #3498db;
+}
+/* 彩色数字牌面（替代 Unicode 麻将字符） */
+.mj-tile-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.mj-tf-rank {
+  font-size: 18px;
+  font-weight: bold;
+}
+.mj-tf-suit {
+  font-size: 10px;
+}
+.mj-tile-face.mj-tf-lg .mj-tf-rank {
+  font-size: 24px;
+}
+.mj-tile-face.mj-tf-lg .mj-tf-suit {
+  font-size: 13px;
+}
+.mj-tile-face.mj-tf-sm .mj-tf-rank {
+  font-size: 14px;
+}
+.mj-tile-face.mj-tf-sm .mj-tf-suit {
+  font-size: 9px;
+}
+
+/* ========== 自己的碰杠 ========== */
+#mahjong-self-melds {
+  display: none;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #14331a;
+  border-top: 1px solid #2e6b35;
+  justify-content: center;
+}
+.mj-self-meld {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: #1e5128; padding: 4px 6px;
+  border-radius: 6px; border: 1px solid #3a7d4a;
+}
+.mj-meld-label { font-size: 11px; font-weight: bold; }
+.mj-meld-body { display: flex; gap: 2px; }
+.mj-meld-tile {
+  width: 22px; height: 30px;
+  background: #fff; border: 1px solid #ccc; border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; line-height: 1;
+}
+.mj-meld-tile.back { background: #2c3e50; border-color: #1a252f; }
+.mj-meld-tile.from-other { border: 2px solid #e74c3c; }
+
+/* 手牌区轮到我的高亮 */
+#mahjong-self-hand.my-turn {
+  background: #1a5c2a;
+  box-shadow: inset 0 0 12px rgba(46, 204, 113, 0.3);
+}
+
+/* ========== 操作区 ========== */
+#mahjong-actions {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 8px 12px; background: #1a4523; border-top: 1px solid #2e6b35;
+  min-height: 44px;
+}
+.mj-action-info { color: #fff; font-size: 14px; margin-right: 8px; }
+
+/* ========== 定缺弹窗 ========== */
+.dingque-btns { display: flex; gap: 16px; justify-content: center; margin-top: 16px; }
+.dingque-btn { padding: 16px 24px; font-size: 28px; background: #27ae60; border: none; border-radius: 8px; color: #fff; cursor: pointer; }
+.dingque-btn:hover { background: #2ecc71; }
+
+/* ========== 结算 ========== */
+#mahjong-settle-content { margin: 12px 0; }
+
+/* ========== 移动端麻将 ========== */
+@media (max-width: 768px) {
+  #mahjong-desk { grid-template-columns: 80px 1fr 80px; gap: 4px; padding: 4px; }
+  .mj-tile { width: 28px; height: 38px; font-size: 18px; }
+  .mj-hand-tile { width: 36px; height: 50px; }
+  .mj-tile-face.mj-tf-lg .mj-tf-rank { font-size: 20px; }
+  .mj-tile-face.mj-tf-lg .mj-tf-suit { font-size: 11px; }
+  .mj-tile-face.mj-tf-sm .mj-tf-rank { font-size: 12px; }
+  .mj-tile-face.mj-tf-sm .mj-tf-suit { font-size: 8px; }
+  .dingque-btn { padding: 12px 18px; font-size: 22px; }
+  #mahjong-log { max-height: 60px; }
+  .mj-meld-tile { width: 16px; height: 24px; font-size: 11px; }
+  .mj-back-mini { width: 16px; height: 24px; margin-left: -8px; }
+  .mj-back-count { font-size: 10px; top: -8px; }
+}
+@media (max-width: 480px) {
+  #mahjong-desk { grid-template-columns: 60px 1fr 60px; gap: 2px; padding: 2px; }
+  .mj-tile { width: 24px; height: 32px; font-size: 15px; }
+  .mj-hand-tile { width: 30px; height: 42px; }
+  .mj-tile-face.mj-tf-lg .mj-tf-rank { font-size: 16px; }
+  .mj-tile-face.mj-tf-lg .mj-tf-suit { font-size: 10px; }
+  .mj-tile-face.mj-tf-sm .mj-tf-rank { font-size: 10px; }
+  .mj-tile-face.mj-tf-sm .mj-tf-suit { font-size: 7px; }
+  .dingque-btn { padding: 10px 14px; font-size: 18px; }
+  #mahjong-actions { gap: 6px; padding: 6px; }
+  .mj-meld-tile { width: 14px; height: 20px; font-size: 10px; }
+  .mj-back-mini { width: 14px; height: 22px; margin-left: -7px; }
+  .mj-seat-info { font-size: 10px; }
+  .mj-seat-detail { font-size: 9px; }
+}

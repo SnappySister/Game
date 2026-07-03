@@ -299,6 +299,87 @@
   </div>
 </div>
 
+<!-- ==================== 四川麻将 ==================== -->
+<div id="view-mahjong" class="view" style="display:none">
+  <div id="mahjong-top-bar">
+    <div id="mahjong-status">等待连接...</div>
+    <div class="mahjong-top-btns">
+      <button id="btn-mahjong-rule">规则</button>
+      <button id="btn-mahjong-chat">聊天</button>
+      <button id="btn-end-mahjong" style="display:none">结束对局</button>
+      <button id="btn-leave-mahjong">退出</button>
+    </div>
+  </div>
+  <div id="mahjong-desk">
+    <div id="mj-area-opposite"></div>
+    <div id="mj-area-left"></div>
+    <div id="mj-desk-centre">
+      <div id="mahjong-discard-info">剩余 <span id="mahjong-deck-count">0</span> 张</div>
+      <div id="mahjong-discards"></div>
+    </div>
+    <div id="mj-area-right"></div>
+  </div>
+  <div id="mahjong-log" class="log-box"></div>
+  <div id="mahjong-self-melds"></div>
+  <div id="mahjong-ting-hint" style="display:none"></div>
+  <div id="mahjong-self-hand"></div>
+  <div id="mahjong-actions"></div>
+  <div id="mahjong-exchange-bar" style="display:none;">
+    <span id="mahjong-exchange-text">请选择3张同花色牌交换</span>
+    <button id="btn-exchange-confirm" disabled>确认交换</button>
+  </div>
+</div>
+
+<!-- 定缺弹窗 -->
+<div id="mahjong-dingque-modal" class="modal" style="display:none">
+  <div class="modal-box">
+    <h2>请选择定缺</h2>
+    <p>胡牌时手中不能有你选择的花色。</p>
+    <div class="dingque-btns">
+      <button class="dingque-btn" data-suit="wan">🀇 万</button>
+      <button class="dingque-btn" data-suit="tiao">🀐 条</button>
+      <button class="dingque-btn" data-suit="tong">🀙 筒</button>
+    </div>
+  </div>
+</div>
+
+<!-- 规则弹窗 -->
+<div id="mahjong-rule-modal" class="modal" style="display:none">
+  <div class="modal-box rule-box">
+    <h2>四川麻将规则</h2>
+    <div class="rule-content">
+      <p><b>一、基本规则</b></p>
+      <p>四川麻将（血战到底）使用 108 张牌（万、条、筒各 1-9，各 4 张），无风牌箭牌。</p>
+      <p>支持 2-4 人对局。</p>
+      <p><b>二、定缺</b></p>
+      <p>开局每人必须选择一门花色作为「定缺」，胡牌时手中<b>不能</b>有定缺花色的牌。</p>
+      <p><b>三、摸打</b></p>
+      <p>庄家起手 14 张，其余 13 张。轮到你的回合时摸一张（14 张），选择一张打出。</p>
+      <p>打牌顺序为顺时针轮流出牌。</p>
+      <p><b>四、胡牌</b></p>
+      <p>手牌满足「4 组面子 + 1 对将」即可胡牌。</p>
+      <p>面子可以是<b>顺子</b>（如 1万2万3万）或<b>刻子</b>（如 3个5万）。</p>
+      <p>胡牌方式：自摸（自己摸到）、点炮（别人打出你需要的牌）。</p>
+      <p><b>五、血战到底</b></p>
+      <p>一家胡牌后<b>不结束</b>，其余玩家继续打，直到只剩 1 家未胡或牌摸完。</p>
+      <p>已胡牌的玩家不再参与摸打。</p>
+      <p><b>六、计分</b></p>
+      <p>平胡基础 1 番：点炮时点炮者给 1 分；自摸时其余每人给 1 分。</p>
+      <p>最终按总分排名。</p>
+    </div>
+    <button id="close-mahjong-rule">知道了</button>
+  </div>
+</div>
+
+<!-- 麻将结算弹窗 -->
+<div id="mahjong-settle-modal" class="modal" style="display:none">
+  <div class="modal-box settle-box">
+    <h2>本局结算</h2>
+    <div id="mahjong-settle-content"></div>
+    <button onclick="onMahjongSettleBtn()" id="mahjong-settle-btn">再来一局</button>
+  </div>
+</div>
+
 <!-- 德州扑克总账弹窗：放在 body 顶层，不受视图切换影响 -->
 <div id="poker-settle-modal" class="modal" style="display:none">
   <div class="modal-box settle-box">
@@ -317,6 +398,10 @@ let pokerState = null, myPokerHand = [], isRoomOwner = false;
 let hasRequestedNextRound = false;
 let pokerHistory = []; // 每局结算数据
 let pokerGameActive = false;
+let mahjongState = null, myMahjongHand = [], mahjongActionRequest = null, mahjongTingTiles = [];
+let selectedMahjongTile = null, myLastDrawnTile = null, mahjongExchangeSelected = [];
+let mahjongGameActive = false;
+let mahjongHistory = [];
 let chatScope = 'lobby';
 let chatMessages = { lobby: [], room: [] };
 let unread = { lobby: 0, room: 0 };
@@ -366,6 +451,12 @@ function showView(id) {
     setChatScope('room');
     $('#tab-room').classList.add('active');
     $('#tab-lobby').classList.remove('active');
+  }
+  else if (id === '#view-mahjong') {
+    $('#chat-panel').style.display = 'none';  // 游戏内默认关闭聊天
+    isPanelOpen = false;
+    $('#chat-toggle-btn').style.display = 'flex';
+    setChatScope('room');
   }
   else {
     $('#chat-panel').style.display = 'none';
@@ -417,7 +508,7 @@ function handleMessage(d) {
     });
   }
   if (d.event === 'roomList') {
-    const titles = { card: '卡牌对战', poker: '德州扑克' };
+    const titles = { card: '卡牌对战', poker: '德州扑克', mahjong: '四川麻将' };
     $('#roomlist-title').textContent = titles[d.gameType] || '游戏房间';
     const c = $('#roomlist-container');
     if (d.rooms.length === 0) { c.innerHTML = '<div class="roomlist-empty">暂无房间，点击上方创建</div>'; }
@@ -494,6 +585,25 @@ function handleMessage(d) {
         myPokerHand = [];
         hasRequestedNextRound = false;
       }
+      // 麻将结束返回房间弹总账（多局后）
+      if (currentGameType === 'mahjong' && mahjongGameActive && mahjongHistory.length > 0) {
+        renderMahjongFinalSettle();
+        mahjongGameActive = false;
+        mahjongHistory = [];
+        mahjongState = null;
+        myMahjongHand = [];
+        myLastDrawnTile = null;
+        mahjongActionRequest = null;
+        selectedMahjongTile = null;
+      } else if (currentGameType === 'mahjong') {
+        mahjongState = null;
+        myMahjongHand = [];
+        mahjongActionRequest = null;
+        mahjongExchangeSelected = [];
+        mahjongTingTiles = [];
+        selectedMahjongTile = null;
+        myLastDrawnTile = null;
+      }
     }
   }
   if (d.event === 'gameStarted') {
@@ -501,6 +611,9 @@ function handleMessage(d) {
     if (gType === 'poker') {
       showView('#view-poker');
       pokerGameActive = true;
+    } else if (gType === 'mahjong') {
+      showView('#view-mahjong');
+      mahjongGameActive = true;
     } else {
       showView('#view-game');
     }
@@ -514,13 +627,21 @@ function handleMessage(d) {
   if (d.event === 'update' || d.event === 'start') {
     if (currentGameType === 'poker') {
       pokerState = d.state;
-      // 新局开始（preflop）时重置继续标志并关闭结算弹窗
       if (d.state && d.state.phase === 'preflop') {
         hasRequestedNextRound = false;
         const settleModal = $('#poker-settle-modal');
         if (settleModal) settleModal.style.display = 'none';
       }
       renderPokerState(d.state);
+    } else if (currentGameType === 'mahjong') {
+      mahjongState = d.state;
+      if (d.state && d.state.phase === 'dingque') {
+        hasRequestedNextRound = false;
+        mahjongActionRequest = null;
+        selectedMahjongTile = null;
+        myLastDrawnTile = null;
+      }
+      renderMahjongState(d.state);
     } else {
       gameState = d.state;
       renderGameState(d.state);
@@ -530,10 +651,13 @@ function handleMessage(d) {
     if (currentGameType === 'poker') {
       myPokerHand = d.myHand; myGameIndex = d.myIndex; isSpectator = !!d.spectator;
       renderPokerHand();
-      // myHand 到达后 myGameIndex 才被正确设置，需要重新渲染 UI
-      if (pokerState) {
-        renderPokerState(pokerState);
-      }
+      if (pokerState) renderPokerState(pokerState);
+    } else if (currentGameType === 'mahjong') {
+      myMahjongHand = d.myHand; myGameIndex = d.myIndex; isSpectator = !!d.spectator;
+      myLastDrawnTile = d.lastDrawn || null;
+      mahjongTingTiles = d.tingTiles || [];
+      renderMahjongHand();
+      if (mahjongState) renderMahjongState(mahjongState);
     } else {
       myHand = d.myHand; myGameIndex = d.myIndex; isSpectator = !!d.spectator;
       renderHand();
@@ -547,9 +671,7 @@ function handleMessage(d) {
   }
   if (d.event === 'over') {
     if (currentGameType === 'poker') {
-      // 记录本局结算，但不弹窗（最后总账时一起算）
       if (d.settlement) pokerHistory.push(d.settlement);
-      // 操作区更新按钮状态
       const box = $('#poker-actions');
       if (box && !isSpectator) {
         if (hasRequestedNextRound) {
@@ -558,10 +680,29 @@ function handleMessage(d) {
           box.innerHTML = '<button class="poker-btn" style="background:#27ae60" onclick="sendNextRound()">继续下一局</button>';
         }
       }
+    } else if (currentGameType === 'mahjong') {
+      if (d.settlement) {
+        mahjongHistory.push(d.settlement);
+        renderMahjongSettle(d.settlement);
+      }
+      const actBox = $('#mahjong-actions');
+      if (actBox && !isSpectator) {
+        if (hasRequestedNextRound) {
+          actBox.innerHTML = '<div class="poker-waiting">已确认，等待其他玩家...</div>';
+        } else {
+          actBox.innerHTML = '<button class="poker-btn" style="background:#27ae60" onclick="sendMahjongNextRound()">再来一局</button>';
+        }
+      }
     } else {
       $('#game-over-modal').style.display = 'flex';
       const myAreaName = $('#my-area .name').textContent;
       $('#winner-text').textContent = d.winner === myAreaName ? '你赢了！' : (d.winner + ' 获胜');
+    }
+  }
+  if (d.event === 'actionRequest') {
+    if (currentGameType === 'mahjong') {
+      mahjongActionRequest = d;
+      renderMahjongActions();
     }
   }
   if (d.event === 'roundWait') {
@@ -569,8 +710,10 @@ function handleMessage(d) {
     $('#poker-status').textContent = '本局结束 — 等待继续下一局 (' + d.ready + '/' + d.total + ' 人已确认)';
     // 只有已经点击过的人，才换成等待提示；没点过的人保留按钮
     if (hasRequestedNextRound) {
-      const box = $('#poker-actions');
-      if (box) box.innerHTML = '<div class="poker-waiting">已确认，等待其他玩家...</div>';
+      const pBox = $('#poker-actions');
+      if (pBox) pBox.innerHTML = '<div class="poker-waiting">已确认，等待其他玩家...</div>';
+      const mBox = $('#mahjong-actions');
+      if (mBox) mBox.innerHTML = '<div class="poker-waiting">已确认，等待其他玩家...</div>';
     }
   }
   if (d.event === 'error') {
@@ -1033,6 +1176,481 @@ function renderPokerFinalSettle() {
 
 function closePokerSettle() {
   $('#poker-settle-modal').style.display = 'none';
+}
+
+/* ==================== 四川麻将 ==================== */
+function suitName(s) {
+  return { wan: '万', tiao: '条', tong: '筒' }[s] || s;
+}
+function tileFaceHTML(t, size) {
+  const color = { wan: '#c0392b', tiao: '#27ae60', tong: '#2980b9' }[t.suit] || '#333';
+  const cls = size ? ' mj-tf-' + size : '';
+  return `<span class="mj-tile-face${cls}" style="color:${color}"><span class="mj-tf-rank">${t.rank}</span><span class="mj-tf-suit">${suitName(t.suit)}</span></span>`;
+}
+function tileLabel(t) {
+  return t.rank + suitName(t.suit);
+}
+
+/* 渲染一个对手座位（对家/上家/下家） */
+function renderMahjongSeat(s, idx) {
+  const p = s.players[idx];
+  const dq = p.dingque ? `定缺${suitName(p.dingque)}` : '未定缺';
+  const huMark = p.isHu ? '胡' : '';
+  const dealerMark = p.isDealer ? '庄' : '';
+  const currentClass = p.isCurrent ? ' current' : '';
+
+  let meldsHtml = '';
+  if (p.melds && p.melds.length > 0) {
+    for (const m of p.melds) {
+      const isHidden = m.type === 'angang';
+      meldsHtml += '<div class="mj-seat-meld">';
+      for (let ti = 0; ti < m.tiles.length; ti++) {
+        if (isHidden && ti < 3) {
+          meldsHtml += '<div class="mj-meld-tile back"></div>';
+        } else {
+          meldsHtml += ' <div class="mj-meld-tile">' + tileFaceHTML(m.tiles[ti]) + '</div>';
+        }
+      }
+      meldsHtml += '</div>';
+    }
+  }
+
+  // 手牌背面：最多堆叠6张表示厚度，显示张数
+  const backCount = Math.min(p.handSize, 6);
+  let backsHtml = '';
+  for (let i = 0; i < backCount; i++) backsHtml += '<div class="mj-back-mini"></div>';
+
+  return '<div class="mj-seat' + currentClass + '">' +
+    '<div class="mj-seat-hand">' + backsHtml + '<span class="mj-back-count">' + p.handSize + '</span></div>' +
+    '<div class="mj-seat-info">' +
+      '<div class="mj-seat-name"><b>' + p.name + '</b>' + (huMark ? '<span class="seat-hu">胡</span>' : '') + (dealerMark ? '<span class="seat-dealer">庄</span>' : '') + '</div>' +
+      '<div class="mj-seat-detail">' + dq + ' | ' + p.score + '分</div>' +
+    '</div>' +
+    '<div class="mj-seat-melds">' + meldsHtml + '</div>' +
+    '</div>';
+}
+
+function renderMahjongState(s) {
+  if (!s) return;
+  const me = s.players[myGameIndex] || {};
+  const isMyTurn = s.currentPlayer === myGameIndex && s.phase === 'playing';
+
+  // 顶部状态
+  let statusText = '';
+  if (s.phase === 'exchange') statusText = '换三张：请选择3张同花色牌';
+  else if (s.phase === 'dingque') statusText = '请定缺...';
+  else if (s.phase === 'waitAction' && s.waitingPlayers.includes(myGameIndex)) statusText = '请选择操作';
+  else if (s.phase === 'ended') statusText = '本局结束';
+  else if (isMyTurn) statusText = '你的回合，请出牌';
+  else {
+    const cp = s.players[s.currentPlayer];
+    statusText = cp ? (cp.name + ' 的回合') : '等待中';
+  }
+  $('#mahjong-status').textContent = statusText;
+  $('#mahjong-deck-count').textContent = s.deckCount;
+
+  // 四方座位索引（数组顺序即顺时针座位顺序）
+  const count = s.players.length;
+  let oppositeIdx = null, leftIdx = null, rightIdx = null;
+  if (count === 2) {
+    oppositeIdx = (myGameIndex + 1) % 2;
+  } else if (count === 3) {
+    leftIdx = (myGameIndex - 1 + 3) % 3;
+    rightIdx = (myGameIndex + 1) % 3;
+  } else if (count === 4) {
+    leftIdx = (myGameIndex - 1 + 4) % 4;
+    rightIdx = (myGameIndex + 1) % 4;
+    oppositeIdx = (myGameIndex + 2) % 4;
+  }
+
+  if (oppositeIdx !== null) {
+    $('#mj-area-opposite').innerHTML = renderMahjongSeat(s, oppositeIdx);
+    $('#mj-area-opposite').style.display = 'flex';
+  } else {
+    $('#mj-area-opposite').innerHTML = '';
+    $('#mj-area-opposite').style.display = 'none';
+  }
+  if (leftIdx !== null) {
+    $('#mj-area-left').innerHTML = renderMahjongSeat(s, leftIdx);
+    $('#mj-area-left').style.display = 'flex';
+  } else {
+    $('#mj-area-left').innerHTML = '';
+    $('#mj-area-left').style.display = 'none';
+  }
+  if (rightIdx !== null) {
+    $('#mj-area-right').innerHTML = renderMahjongSeat(s, rightIdx);
+    $('#mj-area-right').style.display = 'flex';
+  } else {
+    $('#mj-area-right').innerHTML = '';
+    $('#mj-area-right').style.display = 'none';
+  }
+
+  // 渲染弃牌堆（最近24张）
+  $('#mahjong-discards').innerHTML = s.discardPile.map(t =>
+    '<div class="mj-tile">' + tileFaceHTML(t, 'sm') + '</div>'
+  ).join('');
+
+  // 日志
+  const log = $('#mahjong-log');
+  if (log) {
+    log.innerHTML = s.logs.map(l => '<div>' + l + '</div>').join('');
+    log.scrollTop = log.scrollHeight;
+  }
+
+  // 定缺弹窗
+  const dqModal = $('#mahjong-dingque-modal');
+  if (s.phase === 'dingque' && !me.dingque && !isSpectator) {
+    dqModal.style.display = 'flex';
+  } else {
+    dqModal.style.display = 'none';
+  }
+
+  // 手牌区高亮
+  const handBox = $('#mahjong-self-hand');
+  if (handBox) {
+    if (isMyTurn && !me.isHu) handBox.classList.add('my-turn');
+    else handBox.classList.remove('my-turn');
+  }
+
+  renderMahjongSelfMelds();
+  renderMahjongHand();
+  renderMahjongActions();
+
+  // 换三张面板
+  const exBar = $('#mahjong-exchange-bar');
+  if (s.phase === 'exchange' && !isSpectator) {
+    const submitted = s.exchangeSubmitted && s.exchangeSubmitted[myGameIndex];
+    if (!submitted && !s.diceResult) {
+      mahjongExchangeSelected = mahjongExchangeSelected.filter(i => i >= 0 && i < myMahjongHand.length);
+    }
+    exBar.style.display = 'flex';
+    if (s.diceResult) {
+      const dirMap = { shun: '顺时针', ni: '逆时针' };
+      $('#mahjong-exchange-text').innerHTML = `<span class="dice-result">${s.diceResult.dice}点</span>→ ${dirMap[s.diceResult.direction]}`;
+      $('#btn-exchange-confirm').style.display = 'none';
+    } else {
+      $('#mahjong-exchange-text').textContent = submitted ? '等待其他玩家交换...' : '请选择3张同花色牌交换';
+      $('#btn-exchange-confirm').style.display = submitted ? 'none' : 'inline-block';
+      $('#btn-exchange-confirm').disabled = mahjongExchangeSelected.length !== 3;
+    }
+  } else {
+    exBar.style.display = 'none';
+  }
+
+  $('#btn-end-mahjong').style.display = (isRoomOwner && s.phase !== 'ended' && s.phase !== 'exchange') ? 'inline-block' : 'none';
+}
+
+function renderMahjongHand() {
+  const box = $('#mahjong-self-hand');
+  const tingBox = $('#mahjong-ting-hint');
+  if (!box) return;
+  if (isSpectator || !myMahjongHand.length) {
+    box.innerHTML = '';
+    if (tingBox) tingBox.style.display = 'none';
+    return;
+  }
+  const s = mahjongState;
+  const me = s && s.players[myGameIndex];
+  const isExchange = s && s.phase === 'exchange';
+  const isMyTurn = s && s.phase === 'playing' && s.currentPlayer === myGameIndex;
+  const canSelect = isMyTurn && !me.isHu;
+
+  let html = '';
+  myMahjongHand.forEach((t, i) => {
+    const isSelectedPlay = selectedMahjongTile != null && selectedMahjongTile.idx === i;
+    const isSelectedEx = isExchange && mahjongExchangeSelected.includes(i);
+    const isNew = !!t.isNew;
+    const cls = [];
+    if (canSelect || isExchange) cls.push('clickable');
+    if (isSelectedPlay) cls.push('selected');
+    if (isSelectedEx) cls.push('exchange-selected');
+    if (isNew) cls.push('new-drawn');
+    html += `<div class="mj-hand-tile ${cls.join(' ')}" data-idx="${i}">` +
+      tileFaceHTML(t, 'lg') +
+      `</div>`;
+  });
+  box.innerHTML = html;
+
+  // 听牌提示
+  if (tingBox && mahjongTingTiles && mahjongTingTiles.length > 0 && !me.isHu && s && s.phase === 'playing') {
+    const tilesHtml = mahjongTingTiles.map(t => tileFaceHTML(t, 'sm')).join('');
+    tingBox.innerHTML = `<span class="ting-label">听牌</span>${tilesHtml}`;
+    tingBox.style.display = 'flex';
+  } else if (tingBox) {
+    tingBox.style.display = 'none';
+  }
+
+  if (isExchange) {
+    box.querySelectorAll('.mj-hand-tile.clickable').forEach(el => {
+      el.onclick = () => {
+        const idx = parseInt(el.dataset.idx);
+        const pos = mahjongExchangeSelected.indexOf(idx);
+        if (pos !== -1) {
+          mahjongExchangeSelected.splice(pos, 1);
+        } else if (mahjongExchangeSelected.length < 3) {
+          // 花色一致性检查
+          const tile = myMahjongHand[idx];
+          const currentSuits = mahjongExchangeSelected.map(i => myMahjongHand[i].suit);
+          if (currentSuits.length === 0 || currentSuits.every(s => s === tile.suit)) {
+            mahjongExchangeSelected.push(idx);
+          }
+        }
+        renderMahjongHand();
+        renderMahjongState(mahjongState);
+      };
+    });
+  } else if (canSelect) {
+    box.querySelectorAll('.mj-hand-tile.clickable').forEach(el => {
+      el.onclick = () => {
+        const idx = parseInt(el.dataset.idx);
+        if (selectedMahjongTile != null && selectedMahjongTile.idx === idx) {
+          selectedMahjongTile = null;
+        } else {
+          selectedMahjongTile = { idx };
+        }
+        renderMahjongHand();
+        renderMahjongActions();
+      };
+    });
+  }
+}
+
+function renderMahjongSelfMelds() {
+  const box = $('#mahjong-self-melds');
+  if (!box) return;
+  const s = mahjongState;
+  if (!s || isSpectator) {
+    box.innerHTML = '';
+    box.style.display = 'none';
+    return;
+  }
+  const me = s.players[myGameIndex];
+  if (!me || !me.melds || me.melds.length === 0) {
+    box.innerHTML = '';
+    box.style.display = 'none';
+    return;
+  }
+  box.style.display = 'flex';
+  let html = '';
+  for (const m of me.melds) {
+    const label = m.type === 'peng' ? '碰' : (m.type === 'minggang' ? '杠' : (m.type === 'jiagang' ? '杠' : '暗'));
+    const color = m.type === 'peng' ? '#f39c12' : '#8e44ad';
+    html += '<div class="mj-self-meld" title="' + label + '">';
+    html += `<div class="mj-meld-label" style="color:${color}">${label}</div>`;
+    html += '<div class="mj-meld-body">';
+    for (let ti = 0; ti < m.tiles.length; ti++) {
+      const isHidden = m.type === 'angang' && ti < 3;
+      if (isHidden) {
+        html += '<div class="mj-meld-tile back"></div>';
+      } else {
+        const mt = m.tiles[ti];
+        const fromClass = (m.type === 'peng' || m.type === 'minggang') && ti === 3 ? ' from-other' : '';
+        html += `<div class="mj-meld-tile${fromClass}">${tileFaceHTML(mt)}</div>`;
+      }
+    }
+    html += '</div></div>';
+  }
+  box.innerHTML = html;
+}
+
+function renderMahjongActions() {
+  const box = $('#mahjong-actions');
+  if (!box) return;
+  if (isSpectator) { box.innerHTML = '<div class="poker-waiting">观战中</div>'; return; }
+
+  if (mahjongActionRequest) {
+    const req = mahjongActionRequest;
+    let html = '<div class="mj-action-info">';
+    if (req.reason === 'zimo') html += '你摸到了需要的牌！';
+    else if (req.reason === 'qianggang') html += tileLabel(req.tile) + ' 抢杠胡！';
+    else if (req.reason === 'selfGang') html += '请选择杠牌操作';
+    if (req.reason === 'peng') html += tileLabel(req.tile) + ' 可碰';
+    else if (req.reason === 'minggang') html += tileLabel(req.tile) + ' 可明杠';
+    else if (req.reason === 'peng_gang') html += tileLabel(req.tile) + ' 可碰/杠';
+    else html += tileLabel(req.tile) + ' 可胡';
+    html += '</div>';
+
+    // 自己回合的暗杠/加杠
+    if (req.reason === 'selfGang') {
+      if (req.anGangList && req.anGangList.length > 0) {
+        for (const tk of req.anGangList) {
+          const [suit, rankStr] = tk.split('_');
+          html += `<button class="poker-btn" style="background:#8e44ad" onclick="sendMahjongSelfAction('angang',{tileKey:'${tk}'})">暗杠 ${rankStr}${suitName(suit)}</button>`;
+        }
+      }
+      if (req.jiaGangList && req.jiaGangList.length > 0) {
+        for (const idx of req.jiaGangList) {
+          const st = mahjongState;
+          const me = st && st.players[myGameIndex];
+          const meld = me && me.melds[idx];
+          if (meld) {
+            html += `<button class="poker-btn" style="background:#9b59b6" onclick="sendMahjongSelfAction('jiagang',{pengMeldIdx:${idx}})">加杠 ${tileLabel(meld.tiles[0])}</button>`;
+          }
+        }
+      }
+      html += '<button class="poker-btn" style="background:#95a5a6" onclick="sendMahjongAction(\'pass\')">过</button>';
+      box.innerHTML = html;
+      return;
+    }
+
+    // 普通操作按钮
+    for (const act of req.actions) {
+      if (act === 'hu') {
+        html += '<button class="poker-btn" style="background:#e74c3c" onclick="sendMahjongAction(\'hu\')">胡</button>';
+      } else if (act === 'pass') {
+        html += '<button class="poker-btn" style="background:#95a5a6" onclick="sendMahjongAction(\'pass\')">过</button>';
+      } else if (act === 'peng') {
+        html += '<button class="poker-btn" style="background:#f39c12" onclick="sendMahjongAction(\'peng\')">碰</button>';
+      } else if (act === 'gang') {
+        html += '<button class="poker-btn" style="background:#8e44ad" onclick="sendMahjongAction(\'gang\')">杠</button>';
+      }
+    }
+    box.innerHTML = html;
+    return;
+  }
+
+  const s = mahjongState;
+  const me = s && s.players[myGameIndex];
+  const isMyTurn = s && s.phase === 'playing' && s.currentPlayer === myGameIndex;
+  const canDiscard = isMyTurn && me && !me.isHu;
+
+  if (canDiscard) {
+    if (selectedMahjongTile != null) {
+      const tile = myMahjongHand[selectedMahjongTile.idx];
+      box.innerHTML = '<button class="poker-btn" style="background:#3498db" onclick="sendMahjongDiscard()">出牌 ' + (tile ? tileLabel(tile) : '') + '</button>';
+    } else {
+      box.innerHTML = '<div class="poker-waiting">请选择一张牌，然后点击出牌</div>';
+    }
+    return;
+  }
+
+  box.innerHTML = '<div class="poker-waiting">等待其他玩家...</div>';
+}
+
+function sendMahjongDiscard() {
+  if (selectedMahjongTile == null) return;
+  const tile = myMahjongHand[selectedMahjongTile.idx];
+  if (!tile) return;
+  send({ type: 'discard', tile });
+  selectedMahjongTile = null;
+  myLastDrawnTile = null;
+}
+function sendDingque(suit) {
+  send({ type: 'dingque', suit });
+}
+function sendMahjongAction(action) {
+  mahjongActionRequest = null;
+  send({ type: 'action', action });
+}
+function sendMahjongSelfAction(action, extra) {
+  mahjongActionRequest = null;
+  send({ type: 'selfAction', action, ...extra });
+}
+function sendMahjongExchange() {
+  const cards = mahjongExchangeSelected.map(i => myMahjongHand[i]);
+  send({ type: 'exchange', cards });
+  mahjongExchangeSelected = [];
+}
+
+function renderMahjongSettle(settlement) {
+  if (!settlement) return;
+  const box = $('#mahjong-settle-content');
+  const sorted = [...settlement.players].sort((a, b) => b.score - a.score);
+  let html = '<table class="settle-table">';
+  html += '<tr><th>玩家</th><th>是否胡牌</th><th>番型</th><th>分数</th></tr>';
+  for (const p of sorted) {
+    const color = p.score > 0 ? '#2ecc71' : (p.score < 0 ? '#e74c3c' : '#aaa');
+    const sign = p.score > 0 ? '+' : '';
+    let fanHtml = '-';
+    if (p.fanDetail && p.fanDetail.fans && p.fanDetail.fans.length > 0) {
+      fanHtml = `<span style="color:#f1c40f">${p.fanDetail.totalFan}番</span><br><small style="color:#aaa">${p.fanDetail.fans.map(f => f.label).join(' ')}</small>`;
+    }
+    html += `<tr><td><b>${p.name}</b></td><td>${p.isHu ? '是' : '否'}</td><td>${fanHtml}</td><td style="color:${color}">${sign}${p.score}</td></tr>`;
+  }
+  html += '</table>';
+  box.innerHTML = html;
+  $('#mahjong-settle-modal').querySelector('h2').textContent = settlement.flowEnd ? '流局结算' : '本局结算';
+  $('#mahjong-settle-btn').textContent = '再来一局';
+  $('#mahjong-settle-modal').style.display = 'flex';
+}
+function closeMahjongSettle() {
+  $('#mahjong-settle-modal').style.display = 'none';
+}
+
+/* 麻将按钮绑定 */
+document.querySelectorAll('.dingque-btn').forEach(b => {
+  b.onclick = () => sendDingque(b.dataset.suit);
+});
+$('#btn-mahjong-rule').onclick = () => { $('#mahjong-rule-modal').style.display = 'flex'; };
+$('#close-mahjong-rule').onclick = () => { $('#mahjong-rule-modal').style.display = 'none'; };
+$('#btn-leave-mahjong').onclick = () => { send({ type: 'leaveRoom' }); showView('#view-lobby'); };
+$('#btn-mahjong-chat').onclick = () => { $('#chat-panel').style.display = $('#chat-panel').style.display === 'none' ? 'flex' : 'none'; };
+$('#btn-exchange-confirm').onclick = () => { sendMahjongExchange(); };
+$('#btn-end-mahjong').onclick = () => {
+  if (!confirm('确定要结束对局吗？所有玩家将回到准备状态。')) return;
+  send({ type: 'endGame' });
+};
+
+function onMahjongSettleBtn() {
+  if ($('#mahjong-settle-btn').textContent === '关闭') {
+    closeMahjongSettle();
+  } else {
+    sendMahjongBackToRoom();
+  }
+}
+
+function sendMahjongNextRound() {
+  hasRequestedNextRound = true;
+  send({ type: 'nextRound' });
+  mahjongExchangeSelected = [];
+  const box = $('#mahjong-actions');
+  if (box) box.innerHTML = '<div class="poker-waiting">已确认，等待其他玩家...</div>';
+}
+
+function sendMahjongBackToRoom() {
+  closeMahjongSettle();
+  send({ type: 'backToRoom' });
+}
+
+function renderMahjongFinalSettle() {
+  const box = $('#mahjong-settle-content');
+  if (!box || !mahjongHistory.length) return;
+
+  $('#mahjong-settle-modal').querySelector('h2').textContent = '对局总账（共 ' + mahjongHistory.length + ' 局）';
+  $('#mahjong-settle-btn').textContent = '关闭';
+
+  const playerNames = [...new Set(mahjongHistory.flatMap(s => s.players.map(p => p.name)))];
+  const stats = playerNames.map(name => {
+    const rounds = mahjongHistory.map(s => {
+      const p = s.players.find(x => x.name === name);
+      return p ? p.score : 0;
+    });
+    const total = rounds.reduce((a, b) => a + b, 0);
+    return { name, rounds, total };
+  });
+  stats.sort((a, b) => b.total - a.total);
+
+  let html = '<table class="settle-table">';
+  html += '<tr><th>玩家</th>';
+  for (let i = 0; i < mahjongHistory.length; i++) html += '<th>第' + (i + 1) + '局</th>';
+  html += '<th>总计</th></tr>';
+
+  for (const st of stats) {
+    html += '<tr>';
+    html += '<td><b>' + st.name + '</b></td>';
+    for (const ch of st.rounds) {
+      const color = ch > 0 ? '#2ecc71' : (ch < 0 ? '#e74c3c' : '#aaa');
+      const sign = ch > 0 ? '+' : '';
+      html += '<td style="color:' + color + '">' + sign + ch + '</td>';
+    }
+    const totalColor = st.total > 0 ? '#2ecc71' : (st.total < 0 ? '#e74c3c' : '#aaa');
+    const totalSign = st.total > 0 ? '+' : '';
+    html += '<td style="color:' + totalColor + ';font-weight:bold">' + totalSign + st.total + '</td>';
+    html += '</tr>';
+  }
+  html += '</table>';
+  box.innerHTML = html;
+  $('#mahjong-settle-modal').style.display = 'flex';
 }
 </script>
 </body>

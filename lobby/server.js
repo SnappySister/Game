@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const CardGameEngine = require('./games/card-game');
 const TexasHoldemEngine = require('./games/texas-holdem');
+const SichuanMahjongEngine = require('./games/sichuan-mahjong');
 
 const PORT = 3456;
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript' };
@@ -18,6 +19,7 @@ let nextRoomId = 1;
 const GAMES = [
   { id: 'card',   name: '卡牌对战',   desc: '双人回合制卡牌对战', minPlayers: 2, maxPlayers: 2, available: true },
   { id: 'poker',  name: '德州扑克',   desc: '多人德州扑克（2-6人）', minPlayers: 2, maxPlayers: 6, available: true },
+  { id: 'mahjong', name: '四川麻将',  desc: '血战到底（2-4人）', minPlayers: 2, maxPlayers: 4, available: true },
   { id: 'chess',  name: '象棋 (开发中)', desc: '敬请期待', minPlayers: 2, maxPlayers: 2, available: false },
   { id: 'snake',  name: '贪吃蛇 (开发中)', desc: '敬请期待', minPlayers: 2, maxPlayers: 4, available: false }
 ];
@@ -340,9 +342,12 @@ wss.on('connection', (ws) => {
         }
       };
 
-      // 德州扑克保留上一局筹码
+      // 德州/麻将保留上一局分数
       const prevChips = (room.gameType === 'poker' && room.gameInstance)
         ? room.gameInstance.players.map(p => ({ id: p.id, chips: p.chips }))
+        : [];
+      const prevMahjongScores = (room.gameType === 'mahjong' && room.gameInstance)
+        ? room.gameInstance.players.map(p => p.score)
         : [];
 
       if (room.gameType === 'card') {
@@ -353,6 +358,8 @@ wss.on('connection', (ws) => {
           const found = prevChips.find(c => c.id === p.id);
           if (found) p.chips = found.chips;
         });
+      } else if (room.gameType === 'mahjong') {
+        room.gameInstance = new SichuanMahjongEngine(players, sendToPlayer, prevMahjongScores);
       }
       room.gameInstance.start();
 
@@ -403,7 +410,6 @@ wss.on('connection', (ws) => {
     if (msg.type === 'nextRound') {
       const room = rooms.get(user.roomId);
       if (!room || !room.gameInstance) return;
-      if (room.gameType !== 'poker') return;
       if (!room.gameInstance.ended) return;
       if (!room.players.includes(user.id)) return;
 
@@ -422,8 +428,8 @@ wss.on('connection', (ws) => {
           return;
         }
 
+        // 人数变化时重建引擎，保留分数/筹码
         if (room.players.length !== room.gameInstance.playerCount) {
-          const prevChips = room.gameInstance.players.map(p => ({ id: p.id, chips: p.chips }));
           const players = room.players.map((uid, i) => {
             for (const [ws2, u] of users) {
               if (u.id === uid) return { id: uid, name: u.name, ws: ws2, index: i };
@@ -435,11 +441,18 @@ wss.on('connection', (ws) => {
               if (u.id === uid) { send(ws2, obj); break; }
             }
           };
-          room.gameInstance = new TexasHoldemEngine(players, sendToPlayer);
-          room.gameInstance.players.forEach(p => {
-            const found = prevChips.find(c => c.id === p.id);
-            if (found) p.chips = found.chips;
-          });
+
+          if (room.gameType === 'poker') {
+            const prevChips = room.gameInstance.players.map(p => ({ id: p.id, chips: p.chips }));
+            room.gameInstance = new TexasHoldemEngine(players, sendToPlayer);
+            room.gameInstance.players.forEach(p => {
+              const found = prevChips.find(c => c.id === p.id);
+              if (found) p.chips = found.chips;
+            });
+          } else if (room.gameType === 'mahjong') {
+            const prevScores = room.gameInstance.players.map(p => p.score);
+            room.gameInstance = new SichuanMahjongEngine(players, sendToPlayer, prevScores);
+          }
         }
 
         room.gameInstance.start();
@@ -465,6 +478,11 @@ wss.on('connection', (ws) => {
       if (room.ownerId !== user.id) { send(ws, { event: 'error', msg: '只有房主可以结束对局' }); return; }
       if (room.status !== 'playing' || !room.gameInstance) { send(ws, { event: 'error', msg: '游戏未在进行中' }); return; }
 
+      // 触发引擎结算（发送 over 事件）
+      if (room.gameInstance._endGame && !room.gameInstance.ended) {
+        room.gameInstance._endGame();
+      }
+
       // 停止引擎（清除定时器）
       if (typeof room.gameInstance.stop === 'function') {
         room.gameInstance.stop();
@@ -480,7 +498,7 @@ wss.on('connection', (ws) => {
     }
 
     /* ---------- 游戏内消息 ---------- */
-    if (msg.type === 'play' || msg.type === 'discard' || msg.type === 'endTurn' || msg.type === 'bet') {
+    if (msg.type === 'play' || msg.type === 'discard' || msg.type === 'endTurn' || msg.type === 'bet' || msg.type === 'dingque' || msg.type === 'action' || msg.type === 'selfAction' || msg.type === 'exchange') {
       const room = rooms.get(user.roomId);
       if (!room || !room.gameInstance || room.gameInstance.ended) return;
       const pIdx = room.players.indexOf(user.id);
