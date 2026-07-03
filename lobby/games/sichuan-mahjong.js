@@ -48,6 +48,7 @@ class SichuanMahjongEngine {
     this.lastTilePlayed = false;
     this.exchangeCards = [];
     this.diceResult = null;
+    this.firstHuPlayerIndex = -1;
   }
 
   /* ==================== 初始化 ==================== */
@@ -87,6 +88,7 @@ class SichuanMahjongEngine {
     this.lastTilePlayed = false;
     this.exchangeCards = [];
     this.diceResult = null;
+    this.firstHuPlayerIndex = -1;
 
     this._log(`[engine] 游戏开始(${this.players.length}人), 庄=P${this.dealerIndex}, 牌堆=${this.deck.length}`);
     this._broadcastAll();
@@ -393,6 +395,8 @@ class SichuanMahjongEngine {
       const { idx: gangIdx, tile, pengMeldIdx } = this.jiagangPending;
       this._completeJiaGang(gangIdx, tile, pengMeldIdx);
       this.jiagangPending = null;
+      // _drawExtra 可能已将 phase 改为 waitAction（杠上花 / 杠后杠）
+      if (this.phase === 'waitAction') return;
       this.phase = 'playing';
       this.pendingTile = null;
       this.waitingPlayers = [];
@@ -505,8 +509,8 @@ class SichuanMahjongEngine {
   _drawExtra(idx) {
     if (this.deck.length === 0) {
       this.logs.push('牌堆已空');
-      this._log(`[engine] P${idx}摸岭上牌: 牌堆已空 -> 结束`);
-      this._endGame();
+      this._log(`[engine] P${idx}摸岭上牌: 牌堆已空 -> 流局`);
+      this._checkFlowEnd();
       return;
     }
     const tile = this.deck.pop();
@@ -519,6 +523,30 @@ class SichuanMahjongEngine {
     this._sortHand(player.hand);
     this.logs.push(`${player.name} 摸岭上牌`);
     this._log(`[engine] P${idx}摸岭上牌 ${tileLabel(tile)}, 手牌=${player.hand.length}`);
+
+    const hasDingqueInMelds = player.melds.some(m => m.tiles.some(t => t.suit === player.dingque));
+    const canHu = !hasDingqueInMelds && this._canHu(player.hand, player.dingque);
+    const anGangList = this._canAnGang(idx);
+    const jiaGangList = this._canJiaGang(idx);
+
+    if (canHu || anGangList.length > 0 || jiaGangList.length > 0) {
+      this.phase = 'waitAction';
+      this.waitingPlayers = [idx];
+      this.pendingActions = new Map();
+      if (canHu) this.pendingTile = tile;
+
+      const actions = [];
+      if (canHu) actions.push('hu');
+      actions.push('pass');
+      const reason = canHu ? 'zimo' : 'selfGang';
+
+      this._broadcastAll();
+      this._send(idx, { event: 'actionRequest', actions, tile, isZimo: canHu, reason, anGangList, jiaGangList });
+      this._log(`[engine] P${idx} gang-draw action: canHu=${canHu}, anGang=[${anGangList}], jiaGang=[${jiaGangList}]`);
+      return;
+    }
+
+    this._broadcastAll();
   }
 
   _shouldEnd() {
@@ -747,6 +775,10 @@ class SichuanMahjongEngine {
     const player = this.players[idx];
     player.isHu = true;
     player.huTile = tile;
+
+    if (this.firstHuPlayerIndex === -1) {
+      this.firstHuPlayerIndex = idx;
+    }
 
     const { totalFan, fans } = this._calcFan(idx, tile, isZimo);
     const baseScore = Math.pow(2, totalFan - 1);
@@ -1094,10 +1126,16 @@ class SichuanMahjongEngine {
     this.phase = 'ended';
     this.logs.push(isFlowEnd ? '流局结束' : '本局结束');
     this._log(`[engine] 结束(${isFlowEnd ? '流局' : '正常'}), 各玩家分数:` + this.players.map((p, i) => `P${i}=${p.score}${p.isHu ? '(胡)' : ''}`).join(', '));
+
+    if (this.firstHuPlayerIndex !== -1) {
+      this.dealerIndex = this.firstHuPlayerIndex;
+    }
+    this._log(`[engine] 下一局庄家=P${this.dealerIndex}`);
     this._broadcastAll();
 
     const settlement = {
       flowEnd: isFlowEnd,
+      nextDealer: this.dealerIndex,
       players: this.players.map(p => ({
         name: p.name,
         score: p.score,

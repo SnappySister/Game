@@ -496,7 +496,9 @@ wss.on('connection', (ws) => {
             });
           } else if (room.gameType === 'mahjong') {
             const prevScores = room.gameInstance.players.map(p => p.score);
+            const prevDealer = room.gameInstance.dealerIndex;
             room.gameInstance = new SichuanMahjongEngine(players, sendToPlayer, prevScores, (msg) => log.debug(msg));
+            room.gameInstance.dealerIndex = prevDealer;
           }
         }
 
