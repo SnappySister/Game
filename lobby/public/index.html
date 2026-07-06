@@ -1529,6 +1529,8 @@ function renderMahjongActions() {
     else if (req.reason === 'peng') html += tileLabel(req.tile) + ' 可碰';
     else if (req.reason === 'minggang') html += tileLabel(req.tile) + ' 可明杠';
     else if (req.reason === 'peng_gang') html += tileLabel(req.tile) + ' 可碰/杠';
+    else if (req.reason === 'hu_peng_gang') html += tileLabel(req.tile) + ' 可胡/碰/杠';
+    else if (req.reason === 'dianpao') html += tileLabel(req.tile) + ' 可胡';
     else html += tileLabel(req.tile) + ' 可胡';
     html += '</div>';
 
