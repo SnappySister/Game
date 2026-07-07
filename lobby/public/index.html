@@ -1700,7 +1700,7 @@ function renderMahjongFinalSettle() {
   const stats = playerNames.map(name => {
     const rounds = mahjongHistory.map(s => {
       const p = s.players.find(x => x.name === name);
-      return p ? p.score : 0;
+      return p ? (p.change !== undefined ? p.change : p.score) : 0;
     });
     const total = rounds.reduce((a, b) => a + b, 0);
     return { name, rounds, total };
