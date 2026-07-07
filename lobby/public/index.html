@@ -303,6 +303,7 @@
 <div id="view-mahjong" class="view" style="display:none">
   <div id="mahjong-top-bar">
     <div id="mahjong-status">等待连接...</div>
+    <div id="mahjong-dingque-tip" class="mahjong-dingque-tip" style="display:none"></div>
     <div class="mahjong-top-btns">
       <button id="btn-mahjong-rule">规则</button>
       <button id="btn-mahjong-chat">聊天</button>
@@ -1310,6 +1311,19 @@ function renderMahjongState(s) {
   }
   $('#mahjong-status').textContent = statusText;
   $('#mahjong-deck-count').textContent = s.deckCount;
+
+  // 自己的定缺提醒（定缺后常驻显示，出牌阶段防止忘缺门）
+  const dqTip = $('#mahjong-dingque-tip');
+  if (dqTip) {
+    if (me.dingque && s.phase !== 'dingque') {
+      const dqSuit = suitName(me.dingque);
+      const dqColor = { wan: '#c0392b', tiao: '#27ae60', tong: '#2980b9' }[me.dingque] || '#333';
+      dqTip.innerHTML = `定缺：<b style="color:${dqColor}">${dqSuit}</b>`;
+      dqTip.style.display = '';
+    } else {
+      dqTip.style.display = 'none';
+    }
+  }
 
   // 四方座位索引（数组顺序即顺时针座位顺序）
   const count = s.players.length;
