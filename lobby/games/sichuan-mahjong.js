@@ -18,6 +18,7 @@ class SichuanMahjongEngine {
     this._send = sendFn;
     this._log = logFn || (() => {});
     this.playerCount = players.length;
+    this.initialScores = [...initialScores];  // 保存本局开始时的分数,用于计算变化量
     this.players = players.map((p, i) => ({
       ...p,
       index: i,
@@ -1185,11 +1186,11 @@ class SichuanMahjongEngine {
     const settlement = {
       flowEnd: isFlowEnd,
       nextDealer: this.dealerIndex,
-      players: this.players.map(p => ({
+      players: this.players.map((p, i) => ({
         name: p.name,
         score: p.score,
         isHu: p.isHu,
-        change: p.score,
+        change: p.score - (this.initialScores[i] || 0),  // 本局变化量 = 当前分数 - 初始分数
         melds: p.melds.map(m => ({ type: m.type, label: tileLabel(m.tiles[0]) })),
         fanDetail: p.fanDetail || null,
       })),
