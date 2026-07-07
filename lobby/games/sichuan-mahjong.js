@@ -258,44 +258,65 @@ class SichuanMahjongEngine {
     // 出牌后清掉新牌标记，让放大效果消失
     for (const t of player.hand) t.isNew = false;
 
-    // 收集所有人对这张牌的候选动作（胡/碰/明杠可同时存在）
-    const candidates = []; // { idx, canHu, canPeng, canGang }
+    // 检查其他人是否可胡这张牌
+    const huCandidates = [];
+    for (let i = 0; i < this.players.length; i++) {
+      if (i === idx) continue;
+      if (this.players[i].isHu) continue;
+      if (this.players[i].disconnected) continue;
+      const testHand = [...this.players[i].hand, tile];
+      const hasDingqueInMelds = this.players[i].melds.some(m => m.tiles.some(t => t.suit === this.players[i].dingque));
+      if (!hasDingqueInMelds && this._canHu(testHand, this.players[i].dingque)) {
+        huCandidates.push(i);
+      }
+    }
+
+    if (huCandidates.length > 0) {
+      this.phase = 'waitAction';
+      this.waitingPlayers = huCandidates;
+      this.pendingActions = new Map();
+      this._broadcastAll();
+      // 对每个胡牌候选玩家，同时检测是否能碰/杠，给玩家完整选择权
+      for (const i of huCandidates) {
+        const actions = ['hu'];
+        const canGang = this._canMingGang(i, tile);
+        const canPeng = this._canPeng(i, tile);
+        if (canGang) actions.push('gang');
+        if (canPeng) actions.push('peng');
+        actions.push('pass');
+        this._send(i, { event: 'actionRequest', actions, tile, reason: 'dianpao' });
+      }
+      this._log(`[engine] P${idx}出${tileLabel(tile)} -> 点炮候选=${huCandidates.join(',')}`);
+      return;
+    }
+
+    // 检查碰/杠（同一张牌最多1人可操作）
     for (let i = 0; i < this.players.length; i++) {
       if (i === idx) continue;
       if (this.players[i].isHu) continue;
       if (this.players[i].disconnected) continue;
 
-      const hasDingqueInMelds = this.players[i].melds.some(m => m.tiles.some(t => t.suit === this.players[i].dingque));
-      const canHu = !hasDingqueInMelds && this._canHu(this._buildFullHand(this.players[i], tile), this.players[i].dingque);
-      const canPeng = this._canPeng(i, tile);
       const canGang = this._canMingGang(i, tile);
-      if (canHu || canPeng || canGang) {
-        candidates.push({ idx: i, canHu, canPeng, canGang });
+      const canPeng = this._canPeng(i, tile);
+      if (canGang || canPeng) {
+        this.phase = 'waitAction';
+        this.waitingPlayers = [i];
+        this.pendingActions = new Map();
+        this._broadcastAll();
+        const actions = [];
+        if (canGang) actions.push('gang');
+        if (canPeng) actions.push('peng');
+        actions.push('pass');
+        const reason = canGang && canPeng ? 'peng_gang' : (canGang ? 'minggang' : 'peng');
+        this._send(i, { event: 'actionRequest', actions, tile, reason });
+        this._log(`[engine] P${idx}出${tileLabel(tile)} -> P${i}可${actions.join('/')}`);
+        return;
       }
     }
 
-    if (candidates.length === 0) {
-      this._log(`[engine] P${idx}出${tileLabel(tile)} -> 无人响应, 进下家`);
-      this._nextPlayer();
-      return;
-    }
-
-    this.phase = 'waitAction';
-    this.waitingPlayers = candidates.map(c => c.idx);
-    this.pendingActions = new Map();
-    this._broadcastAll();
-    for (const c of candidates) {
-      const actions = [];
-      if (c.canHu) actions.push('hu');
-      if (c.canGang) actions.push('gang');
-      if (c.canPeng) actions.push('peng');
-      actions.push('pass');
-      const reason = actions.length === 2 && actions[0] === 'hu' ? 'dianpao' :
-                     (c.canHu && (c.canPeng || c.canGang) ? 'hu_peng_gang' :
-                     (c.canGang && c.canPeng ? 'peng_gang' : (c.canGang ? 'minggang' : 'peng')));
-      this._send(c.idx, { event: 'actionRequest', actions, tile, reason });
-      this._log(`[engine] P${idx}出${tileLabel(tile)} -> P${c.idx}可${actions.filter(a=>a!=='pass').join('/') || 'pass'}`);
-    }
+    // 无人可响应
+    this._log(`[engine] P${idx}出${tileLabel(tile)} -> 无人响应, 进下家`);
+    this._nextPlayer();
   }
 
   _handleAction(idx, msg) {
@@ -333,24 +354,24 @@ class SichuanMahjongEngine {
       return;
     }
 
-    // 他人响应（点炮/抢杠胡/碰/明杠）
+    // 他人响应(点炮/抢杠胡/碰/明杠)
     if (!['hu', 'pass', 'peng', 'gang'].includes(action)) {
       this._log(`[engine] P${idx}action拒绝: 响应阶段非法action=${action}`);
       return;
     }
 
-    // 等所有候选玩家都响应后再裁决，确保优先级正确
+    // 等待所有候选者响应
     const allResponded = this.waitingPlayers.every(i => this.pendingActions.has(i));
     if (!allResponded) return;
 
-    // 血战到底：一炮多响，所有选 hu 的玩家都胡
-    const huActors = this.waitingPlayers.filter(i => this.pendingActions.get(i) === 'hu');
-    if (huActors.length > 0) {
-      this._log(`[engine] 多人响应 -> 胡=${huActors.join(',')} (一炮多响)`);
-      for (const hIdx of huActors) {
-        this._doHu(hIdx, this.pendingTile, false);
+    // 处理所有响应
+    if (action === 'hu' || this.pendingActions.get(idx) === 'hu') {
+      // 一炮多响:收集所有选择胡的玩家,依次执行
+      const huPlayers = this.waitingPlayers.filter(i => this.pendingActions.get(i) === 'hu');
+      for (const huIdx of huPlayers) {
+        this._doHu(huIdx, this.pendingTile, false);
       }
-      // 抢杠胡被胡：撤销加杠，恢复成碰
+
       if (this.jiagangPending) {
         const gangIdx = this.jiagangPending.idx;
         const meldIdx = this.jiagangPending.pengMeldIdx;
@@ -359,22 +380,20 @@ class SichuanMahjongEngine {
           meld.type = 'peng';
           meld.tiles.pop();
           delete meld.sourcePengIdx;
-          // 被抢的牌退回手牌
-          this.players[gangIdx].hand.push(this.pendingTile);
-          this._sortHand(this.players[gangIdx].hand);
         }
         this.jiagangPending = null;
       }
+
       this.phase = 'playing';
       this.pendingTile = null;
       this.waitingPlayers = [];
       this.pendingActions = new Map();
       if (this._shouldEnd()) { this._endGame(); return; }
+      this._broadcastAll();
       this._nextPlayer();
       return;
     }
 
-    // 无人胡：取第一个非 pass 动作（碰/明杠）
     const acted = this.waitingPlayers.find(i => this.pendingActions.get(i) !== 'pass');
     if (acted !== undefined) {
       const act = this.pendingActions.get(acted);
@@ -480,7 +499,7 @@ class SichuanMahjongEngine {
     this._log(`[engine] P${idx}摸牌 ${tileLabel(tile)}, 手牌=${player.hand.length}, 牌堆剩${this.deck.length}`);
 
     const hasDingqueInMelds = player.melds.some(m => m.tiles.some(t => t.suit === player.dingque));
-    const canHu = !hasDingqueInMelds && this._canHu(this._buildFullHand(player), player.dingque);
+    const canHu = !hasDingqueInMelds && this._canHu(player.hand, player.dingque);
     const anGangList = this._canAnGang(idx);
     const jiaGangList = this._canJiaGang(idx);
 
@@ -523,7 +542,7 @@ class SichuanMahjongEngine {
     this._log(`[engine] P${idx}摸岭上牌 ${tileLabel(tile)}, 手牌=${player.hand.length}`);
 
     const hasDingqueInMelds = player.melds.some(m => m.tiles.some(t => t.suit === player.dingque));
-    const canHu = !hasDingqueInMelds && this._canHu(this._buildFullHand(player), player.dingque);
+    const canHu = !hasDingqueInMelds && this._canHu(player.hand, player.dingque);
     const anGangList = this._canAnGang(idx);
     const jiaGangList = this._canJiaGang(idx);
 
@@ -622,7 +641,7 @@ class SichuanMahjongEngine {
     this._sortHand(player.hand);
 
     const pengTiles = [...removed, { ...tile }];
-    player.melds.push({ type: 'peng', tiles: pengTiles, targetIdx: fromIdx, otherIdx: removed.length });
+    player.melds.push({ type: 'peng', tiles: pengTiles, targetIdx: fromIdx });
     this.logs.push(`${player.name} 碰 ${tileLabel(tile)}`);
     this._log(`[engine] P${idx}碰P${fromIdx}的${tileLabel(tile)}, 手牌剩${player.hand.length}`);
 
@@ -654,7 +673,7 @@ class SichuanMahjongEngine {
     this._sortHand(player.hand);
 
     const gangTiles = [...removed, { ...tile }];
-    player.melds.push({ type: 'minggang', tiles: gangTiles, targetIdx: fromIdx, otherIdx: removed.length });
+    player.melds.push({ type: 'minggang', tiles: gangTiles, targetIdx: fromIdx });
     this.logs.push(`${player.name} 明杠 ${tileLabel(tile)}`);
     this._log(`[engine] P${idx}明杠P${fromIdx}的${tileLabel(tile)}, 手牌剩${player.hand.length}`);
     const di = this.discardPile.findIndex(t => t.suit === tile.suit && t.rank === tile.rank);
@@ -702,7 +721,7 @@ class SichuanMahjongEngine {
       player.lastDrawn = null;
     }
 
-    player.melds.push({ type: 'angang', tiles: removed, targetIdx: null, otherIdx: -1 });
+    player.melds.push({ type: 'angang', tiles: removed, targetIdx: null });
     this.logs.push(`${player.name} 暗杠 ${tileLabel({ suit, rank })}`);
     this._log(`[engine] P${idx}暗杠${suit}_${rank}, 手牌剩${player.hand.length}`);
 
@@ -748,7 +767,7 @@ class SichuanMahjongEngine {
       if (i === idx) continue;
       if (this.players[i].isHu) continue;
       if (this.players[i].disconnected) continue;
-      const testHand = this._buildFullHand(this.players[i], removedTile);
+      const testHand = [...this.players[i].hand, removedTile];
       const hasDingqueInMelds = this.players[i].melds.some(m => m.tiles.some(t => t.suit === this.players[i].dingque));
       if (!hasDingqueInMelds && this._canHu(testHand, this.players[i].dingque)) {
         huCandidates.push(i);
@@ -824,19 +843,6 @@ class SichuanMahjongEngine {
   }
 
   /* ==================== 胡牌检测 ==================== */
-  _buildFullHand(player, extraTile = null, handOverride = null) {
-    const tiles = handOverride ? [...handOverride] : [...player.hand];
-    if (extraTile) tiles.push(extraTile);
-    for (const meld of player.melds) {
-      const otherIdx = meld.otherIdx !== undefined ? meld.otherIdx : -1;
-      for (let i = 0; i < meld.tiles.length; i++) {
-        if (i === otherIdx) continue;
-        tiles.push(meld.tiles[i]);
-      }
-    }
-    return tiles;
-  }
-
   _canHu(tiles, dingque) {
     if (tiles.some(t => t.suit === dingque)) return false;
     if (tiles.length % 3 !== 2) return false;
@@ -868,12 +874,23 @@ class SichuanMahjongEngine {
   }
 
   _canFormMelds(count) {
-    const keys = Object.keys(count).filter(k => count[k] > 0);
-    if (keys.length === 0) return true;
-
-    const firstKey = keys[0];
-    const [suit, rankStr] = firstKey.split('_');
-    const r = parseInt(rankStr);
+    // 取当前剩余的最小牌（按 suit 顺序 wan<tiao<tong，同 suit 按 rank 升序）。
+    // 必须按数值取最小牌，不能依赖 Object.keys 的插入顺序——
+    // 点炮/抢杠/听牌检测传入的 testHand 未必排序，否则会漏判胡牌。
+    const SUIT_ORDER = ['wan', 'tiao', 'tong'];
+    let firstKey = null;
+    let firstSuitIdx = -1;
+    let firstRank = -1;
+    for (const k in count) {
+      if (count[k] <= 0) continue;
+      const parts = k.split('_');
+      const si = SUIT_ORDER.indexOf(parts[0]);
+      const r = parseInt(parts[1]);
+      if (firstKey === null || si < firstSuitIdx || (si === firstSuitIdx && r < firstRank)) {
+        firstKey = k; firstSuitIdx = si; firstRank = r;
+      }
+    }
+    if (firstKey === null) return true;
 
     if (count[firstKey] >= 3) {
       count[firstKey] -= 3;
@@ -881,9 +898,9 @@ class SichuanMahjongEngine {
       count[firstKey] += 3;
     }
 
-    if (r <= 7) {
-      const k2 = `${suit}_${r + 1}`;
-      const k3 = `${suit}_${r + 2}`;
+    if (firstRank <= 7) {
+      const k2 = `${SUIT_ORDER[firstSuitIdx]}_${firstRank + 1}`;
+      const k3 = `${SUIT_ORDER[firstSuitIdx]}_${firstRank + 2}`;
       if (count[k2] > 0 && count[k3] > 0) {
         count[firstKey]--;
         count[k2]--;
@@ -1047,22 +1064,19 @@ class SichuanMahjongEngine {
     return melds.filter(m => m.type === 'angang' || m.type === 'minggang' || m.type === 'jiagang').length;
   }
 
-  _isTing(player) {
-    const hand = player.hand;
-    const dingque = player.dingque;
+  _isTing(hand, dingque) {
     if (hand.some(t => t.suit === dingque)) return false;
     for (const s of SUITS) {
       if (s === dingque) continue;
       for (const r of RANKS) {
-        if (this._canHu(this._buildFullHand(player, { suit: s, rank: r }), dingque)) return true;
+        const test = [...hand, { suit: s, rank: r }];
+        if (this._canHu(test, dingque)) return true;
       }
     }
     return false;
   }
 
-  _getTingTiles(player) {
-    const hand = player.hand;
-    const dingque = player.dingque;
+  _getTingTiles(hand, dingque) {
     if (hand.some(t => t.suit === dingque)) return [];
     const result = [];
     const seen = new Set();
@@ -1085,7 +1099,8 @@ class SichuanMahjongEngine {
       for (const s of SUITS) {
         if (s === dingque) continue;
         for (const r of RANKS) {
-          if (this._canHu(this._buildFullHand(player, { suit: s, rank: r }, testHand), dingque)) {
+          const test = [...testHand, { suit: s, rank: r }];
+          if (this._canHu(test, dingque)) {
             const key = `${s}_${r}`;
             if (!seen.has(key)) {
               seen.add(key);
@@ -1128,7 +1143,7 @@ class SichuanMahjongEngine {
     const jiaoPlayers = [];
     const noJiaoPlayers = [];
     for (const idx of nonHuaZhuPlayers) {
-      if (this._isTing(this.players[idx])) {
+      if (this._isTing(this.players[idx].hand, this.players[idx].dingque)) {
         jiaoPlayers.push(idx);
       } else {
         noJiaoPlayers.push(idx);
@@ -1255,7 +1270,7 @@ class SichuanMahjongEngine {
     this.players.forEach((p, i) => {
       this._send(i, { event: 'update', state });
       const tingTiles = (this.phase === 'playing' && !p.isHu)
-        ? this._getTingTiles(p)
+        ? this._getTingTiles(p.hand, p.dingque)
         : [];
       this._send(i, { myHand: p.hand, myIndex: i, lastDrawn: p.lastDrawn, tingTiles });
     });
