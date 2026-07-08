@@ -5,8 +5,9 @@ const path = require('path');
 const CardGameEngine = require('./games/card-game');
 const TexasHoldemEngine = require('./games/texas-holdem');
 const SichuanMahjongEngine = require('./games/sichuan-mahjong');
+const MonopolyEngine = require('./games/monopoly');
 
-const PORT = 3456;
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3456;
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript' };
 
 /* ==================== 日志系统 ==================== */
@@ -51,6 +52,7 @@ const GAMES = [
   { id: 'card',   name: '卡牌对战',   desc: '双人回合制卡牌对战', minPlayers: 2, maxPlayers: 2, available: true },
   { id: 'poker',  name: '德州扑克',   desc: '多人德州扑克（2-6人）', minPlayers: 2, maxPlayers: 6, available: true },
   { id: 'mahjong', name: '四川麻将',  desc: '血战到底（2-4人）', minPlayers: 2, maxPlayers: 4, available: true },
+  { id: 'monopoly', name: '大富翁',    desc: '买地建房收租（2-4人）', minPlayers: 2, maxPlayers: 4, available: true },
   { id: 'chess',  name: '象棋 (开发中)', desc: '敬请期待', minPlayers: 2, maxPlayers: 2, available: false },
   { id: 'snake',  name: '贪吃蛇 (开发中)', desc: '敬请期待', minPlayers: 2, maxPlayers: 4, available: false }
 ];
@@ -391,6 +393,9 @@ wss.on('connection', (ws) => {
       const prevMahjongScores = (room.gameType === 'mahjong' && room.gameInstance)
         ? room.gameInstance.players.map(p => p.score)
         : [];
+      const prevMonopolyScores = (room.gameType === 'monopoly' && room.gameInstance)
+        ? room.gameInstance.players.map(p => p.score)
+        : [];
 
       if (room.gameType === 'card') {
         room.gameInstance = new CardGameEngine(players, sendToPlayer);
@@ -402,6 +407,8 @@ wss.on('connection', (ws) => {
         });
       } else if (room.gameType === 'mahjong') {
         room.gameInstance = new SichuanMahjongEngine(players, sendToPlayer, prevMahjongScores, (msg) => log.debug(msg));
+      } else if (room.gameType === 'monopoly') {
+        room.gameInstance = new MonopolyEngine(players, sendToPlayer, prevMonopolyScores, (msg) => log.debug(msg));
       }
       room.gameInstance.start();
 
@@ -499,6 +506,9 @@ wss.on('connection', (ws) => {
             const prevDealer = room.gameInstance.dealerIndex;
             room.gameInstance = new SichuanMahjongEngine(players, sendToPlayer, prevScores, (msg) => log.debug(msg));
             room.gameInstance.dealerIndex = prevDealer;
+          } else if (room.gameType === 'monopoly') {
+            const prevScores = room.gameInstance.players.map(p => p.score);
+            room.gameInstance = new MonopolyEngine(players, sendToPlayer, prevScores, (msg) => log.debug(msg));
           }
         }
 
@@ -547,7 +557,7 @@ wss.on('connection', (ws) => {
     }
 
     /* ---------- 游戏内消息 ---------- */
-    if (msg.type === 'play' || msg.type === 'discard' || msg.type === 'endTurn' || msg.type === 'bet' || msg.type === 'dingque' || msg.type === 'action' || msg.type === 'selfAction' || msg.type === 'exchange') {
+    if (msg.type === 'play' || msg.type === 'discard' || msg.type === 'endTurn' || msg.type === 'bet' || msg.type === 'dingque' || msg.type === 'action' || msg.type === 'selfAction' || msg.type === 'exchange' || msg.type === 'roll' || msg.type === 'build' || msg.type === 'sellHouse' || msg.type === 'mortgage' || msg.type === 'redeem' || msg.type === 'useJailCard' || msg.type === 'payBail' || msg.type === 'tradeOffer' || msg.type === 'tradeResolve') {
       const room = rooms.get(user.roomId);
       if (!room) { log.warn(`P${user.gameIndex}(${user.name}) ${msg.type} 拒绝: 不在房间中`); return; }
       if (!room.gameInstance) { log.warn(`P${user.gameIndex}(${user.name}) ${msg.type} 拒绝: 无游戏实例 room=${room.id}`); return; }

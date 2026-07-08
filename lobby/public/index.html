@@ -344,6 +344,138 @@
   </div>
 </div>
 
+<!-- ==================== 大富翁对局 ==================== -->
+<div id="view-monopoly" class="view" style="display:none">
+  <div id="monopoly-top-bar">
+    <div id="monopoly-status">大富翁</div>
+    <div>
+      <button id="btn-monopoly-rule">📜 规则</button>
+      <button id="btn-monopoly-trade">🤝 交易</button>
+      <button id="btn-monopoly-leave">退出</button>
+    </div>
+  </div>
+  <div id="monopoly-main">
+    <div id="monopoly-board"></div>
+    <div id="monopoly-sidebar">
+      <div id="monopoly-players"></div>
+      <div id="monopoly-cell-info" class="mono-cell-info">点击地图格子查看详情</div>
+      <div id="monopoly-actions" class="mono-actions"></div>
+      <div id="monopoly-log" class="log-box"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 大富翁规则弹窗 -->
+<div id="monopoly-rule-modal" class="modal" style="display:none">
+  <div class="modal-box rule-box">
+    <h2>大富翁规则</h2>
+    <div class="rule-content">
+      <p><b>一、游戏目标</b></p>
+      <p>2-4 人对局，每人初始 <b>1500 元</b>。对局固定 <b>30 回合</b>，回合结束后按<b>净资产</b>（现金 + 地产/房屋折半价值）排名，最高者获胜。中途所有其他玩家破产则提前结束。</p>
+
+      <p><b>二、回合流程</b></p>
+      <p>轮到你时点击「🎲 掷骰」，掷两枚骰子，按点数总和沿棋盘顺时针前进。</p>
+      <ul>
+        <li>每次经过或停在<b>起点</b>，领取 <b>200 元</b>。</li>
+        <li>掷出<b>双点</b>（两骰相同）可再掷一次；但连续 3 次双点会<b>直接入狱</b>。</li>
+      </ul>
+
+      <p><b>三、地产与买卖</b></p>
+      <p>落到<b>无主地产</b>时弹出购买提示，可买可不买。购买后该地归你所有。</p>
+      <ul>
+        <li>落到<b>自己</b>的地产：进入管理阶段，可选择建房、拆房、抵押或赎回，或直接结束操作。</li>
+        <li>落到<b>他人</b>的地产：按当前等级支付过路费给所有者。</li>
+      </ul>
+
+      <p><b>四、房屋升级</b></p>
+      <p>地产按颜色分组（棕/浅蓝/粉/橙/红/黄）。<b>必须集齐同色全部地产</b>才能建房。</p>
+      <ul>
+        <li>房屋共 5 级（1-4 级为房屋，5 级为酒店），等级越高过路费越高。</li>
+        <li>建房须<b>均衡建设</b>：本组内不能比其他格多 1 栋以上。</li>
+        <li>建房花费按颜色组不同（50/100/150 元），拆房回收一半。</li>
+        <li>非地产类（车站、公用设施）<b>不可建房</b>。</li>
+      </ul>
+
+      <p><b>五、车站与公用设施</b></p>
+      <ul>
+        <li><b>车站</b>：过路费按你持有的车站数量计算（1座25 / 2座50 / 3座100 / 4座200 元）。地图共 2 座车站，集齐后过路费为 50 元。</li>
+        <li><b>公用设施</b>（电力、自来水）：过路费 = 骰子点数和 × 倍数（持1座×4，持2座×10）。</li>
+      </ul>
+
+      <p><b>六、监狱</b></p>
+      <p>踩中「直接入狱」卡、连掷 3 次双点或被命运卡送入监狱时，移至监狱格，进入关押状态（最多 3 回合）。出狱方式：</p>
+      <ul>
+        <li>下一回合掷出<b>双点</b>立即出狱并移动；</li>
+        <li>使用一张<b>出狱卡</b>（机会/命运卡可获得）；</li>
+        <li>交纳 <b>50 元</b>保释金后掷骰移动。</li>
+        <li>关满 3 回合仍未出狱，强制交 50 元保释金出狱。</li>
+      </ul>
+
+      <p><b>七、机会卡与命运卡</b></p>
+      <p>踩中「机会」或「命运」格子抽一张卡，触发随机事件：</p>
+      <ul>
+        <li>获得/失去金钱、移动到指定格子、后退若干格；</li>
+        <li>获得出狱卡、直接入狱、向每位玩家收钱或付钱等。</li>
+      </ul>
+
+      <p><b>八、税收格</b></p>
+      <ul>
+        <li><b>所得税</b>：支付 100 元。</li>
+        <li><b>奢侈税</b>：支付 100 元。</li>
+      </ul>
+
+      <p><b>九、抵押与赎回</b></p>
+      <p>资金紧张时可抵押无房屋的地产，获得其价格一半的现金；抵押中的地产<b>不收过路费</b>。赎回需支付价格 55%（本金一半 + 10% 利息）。</p>
+
+      <p><b>十、玩家交易</b></p>
+      <p>点击「🤝 交易」可向其他玩家发起提议，交换地产、现金和出狱卡。对方收到后可选择接受或拒绝，接受即成交。提议 30 秒未响应自动取消。</p>
+
+      <p><b>十一、破产</b></p>
+      <p>需付款时若现金不足，系统会自动变卖房屋、抵押地产凑钱。若仍无法凑齐则<b>破产</b>，所有资产转交债主（无债主则释放为无主）。剩余 1 人时游戏结束。</p>
+
+      <p><b>十二、结束与结算</b></p>
+      <p>达到 30 回合或仅剩 1 人时游戏结束，按净资产排名并显示结算。可投票「再来一局」继续，分数累计跨局继承。</p>
+    </div>
+    <button onclick="$('#monopoly-rule-modal').style.display='none'">关闭</button>
+  </div>
+</div>
+
+<!-- 大富翁交易发起弹窗 -->
+<div id="monopoly-trade-modal" class="modal" style="display:none">
+  <div class="modal-box">
+    <h2>发起交易</h2>
+    <div id="mono-trade-body"></div>
+    <div style="margin-top:10px;text-align:right">
+      <button id="btn-mono-trade-cancel">取消</button>
+      <button id="btn-mono-trade-send" style="background:#27ae60;color:#fff">发送提议</button>
+    </div>
+  </div>
+</div>
+
+<!-- 大富翁交易接收弹窗 -->
+<div id="monopoly-trade-offer-modal" class="modal" style="display:none">
+  <div class="modal-box">
+    <h2>收到交易提议</h2>
+    <div id="mono-trade-offer-body"></div>
+    <div style="margin-top:10px;text-align:right">
+      <button id="btn-mono-offer-decline" style="background:#c0392b;color:#fff">拒绝</button>
+      <button id="btn-mono-offer-accept" style="background:#27ae60;color:#fff">接受</button>
+    </div>
+  </div>
+</div>
+
+<!-- 大富翁购买/操作弹窗 -->
+<div id="monopoly-buy-modal" class="modal" style="display:none">
+  <div class="modal-box">
+    <h2 id="mono-buy-title">购买地产</h2>
+    <div id="mono-buy-body"></div>
+    <div style="margin-top:10px;text-align:right">
+      <button id="btn-mono-buy-no">取消</button>
+      <button id="btn-mono-buy-yes" style="background:#27ae60;color:#fff">购买</button>
+    </div>
+  </div>
+</div>
+
 <!-- 规则弹窗 -->
 <div id="mahjong-rule-modal" class="modal" style="display:none">
   <div class="modal-box rule-box">
@@ -478,6 +610,9 @@ let mahjongState = null, myMahjongHand = [], mahjongActionRequest = null, mahjon
 let selectedMahjongTile = null, myLastDrawnTile = null, mahjongExchangeSelected = [];
 let mahjongGameActive = false;
 let mahjongHistory = [];
+let monopolyState = null, monopolyGameActive = false;
+let monopolyHistory = [];
+let monopolyTradeOffer = null; // 收到的交易提议
 let chatScope = 'lobby';
 let chatMessages = { lobby: [], room: [] };
 let unread = { lobby: 0, room: 0 };
@@ -534,6 +669,12 @@ function showView(id) {
     $('#chat-toggle-btn').style.display = 'flex';
     setChatScope('room');
   }
+  else if (id === '#view-monopoly') {
+    $('#chat-panel').style.display = 'none';
+    isPanelOpen = false;
+    $('#chat-toggle-btn').style.display = 'flex';
+    setChatScope('room');
+  }
   else {
     $('#chat-panel').style.display = 'none';
     isPanelOpen = false;
@@ -584,7 +725,7 @@ function handleMessage(d) {
     });
   }
   if (d.event === 'roomList') {
-    const titles = { card: '卡牌对战', poker: '德州扑克', mahjong: '四川麻将' };
+    const titles = { card: '卡牌对战', poker: '德州扑克', mahjong: '四川麻将', monopoly: '大富翁' };
     $('#roomlist-title').textContent = titles[d.gameType] || '游戏房间';
     const c = $('#roomlist-container');
     if (d.rooms.length === 0) { c.innerHTML = '<div class="roomlist-empty">暂无房间，点击上方创建</div>'; }
@@ -690,6 +831,10 @@ function handleMessage(d) {
     } else if (gType === 'mahjong') {
       showView('#view-mahjong');
       mahjongGameActive = true;
+    } else if (gType === 'monopoly') {
+      showView('#view-monopoly');
+      monopolyGameActive = true;
+      hasRequestedNextRound = false;
     } else {
       showView('#view-game');
     }
@@ -718,6 +863,10 @@ function handleMessage(d) {
         myLastDrawnTile = null;
       }
       renderMahjongState(d.state);
+    } else if (currentGameType === 'monopoly') {
+      monopolyState = d.state;
+      if (d.myIndex != null) { myGameIndex = d.myIndex; isSpectator = false; }
+      renderMonopolyState(d.state);
     } else {
       gameState = d.state;
       renderGameState(d.state);
@@ -769,6 +918,9 @@ function handleMessage(d) {
           actBox.innerHTML = '<button class="poker-btn" style="background:#27ae60" onclick="sendMahjongNextRound()">再来一局</button>';
         }
       }
+    } else if (currentGameType === 'monopoly') {
+      if (d.settlement) monopolyHistory.push(d.settlement);
+      renderMonopolyOver(d);
     } else {
       $('#game-over-modal').style.display = 'flex';
       const myAreaName = $('#my-area .name').textContent;
@@ -779,7 +931,13 @@ function handleMessage(d) {
     if (currentGameType === 'mahjong') {
       mahjongActionRequest = d;
       renderMahjongActions();
+    } else if (currentGameType === 'monopoly') {
+      renderMonopolyActionRequest(d);
     }
+  }
+  if (d.event === 'tradeOffer') {
+    monopolyTradeOffer = d;
+    renderMonopolyTradeOffer(d);
   }
   if (d.event === 'roundWait') {
     // 更新顶部状态栏
@@ -790,6 +948,11 @@ function handleMessage(d) {
       if (pBox) pBox.innerHTML = '<div class="poker-waiting">已确认，等待其他玩家...</div>';
       const mBox = $('#mahjong-actions');
       if (mBox) mBox.innerHTML = '<div class="poker-waiting">已确认，等待其他玩家...</div>';
+      const oBox = $('#monopoly-actions');
+      if (oBox) oBox.innerHTML = '<div class="poker-waiting">已确认，等待其他玩家 (' + d.ready + '/' + d.total + ')...</div>';
+    } else if (currentGameType === 'monopoly') {
+      const oBox = $('#monopoly-actions');
+      if (oBox && !isSpectator) oBox.innerHTML = '<div class="poker-waiting">等待其他玩家确认 (' + d.ready + '/' + d.total + ')</div>';
     }
   }
   if (d.event === 'error') {
@@ -859,6 +1022,22 @@ $('#login-btn').onclick = () => {
   send({ type: 'setName', name });
 };
 $('#nickname-input').addEventListener('keypress', e => { if (e.key === 'Enter') $('#login-btn').click(); });
+
+/* ==================== 大富翁按钮 ==================== */
+$('#btn-monopoly-rule')?.addEventListener('click', () => { $('#monopoly-rule-modal').style.display = 'flex'; });
+$('#btn-monopoly-trade')?.addEventListener('click', () => { openMonopolyTrade(); });
+$('#btn-monopoly-leave')?.addEventListener('click', () => { leaveMonopoly(); });
+$('#btn-mono-trade-cancel')?.addEventListener('click', () => { $('#monopoly-trade-modal').style.display = 'none'; });
+$('#btn-mono-trade-send')?.addEventListener('click', () => { sendMonopolyTradeOffer(); });
+$('#btn-mono-offer-accept')?.addEventListener('click', () => {
+  send({ type: 'tradeResolve', accept: true });
+  $('#monopoly-trade-offer-modal').style.display = 'none';
+});
+$('#btn-mono-offer-decline')?.addEventListener('click', () => {
+  send({ type: 'tradeResolve', accept: false });
+  $('#monopoly-trade-offer-modal').style.display = 'none';
+});
+$('#btn-mono-buy-no')?.addEventListener('click', () => { $('#monopoly-buy-modal').style.display = 'none'; });
 
 /* ==================== 大厅操作 ==================== */
 $('#btn-back-lobby').onclick = () => {
@@ -1742,6 +1921,365 @@ function renderMahjongFinalSettle() {
   html += '</table>';
   box.innerHTML = html;
   $('#mahjong-settle-modal').style.display = 'flex';
+}
+
+/* ==================== 大富翁渲染 ==================== */
+const MONO_COLORS = {
+  brown: '#8B4513', lightblue: '#87CEEB', pink: '#FF69B4',
+  orange: '#FFA500', red: '#E74C3C', yellow: '#F1C40F',
+  station: '#34495E', utility: '#16A085', other: '#444'
+};
+const MONO_TOKENS = ['🚗', '🚕', '🏎️', '🚓'];
+
+function renderMonopolyState(s) {
+  if (!s) return;
+  // 顶部状态
+  const cur = s.players[s.currentPlayer];
+  $('#monopoly-status').textContent = `第 ${s.round}/${s.maxRounds} 回合 · 轮到 ${cur ? cur.name : '?'} · ${monoPhaseText(s.phase)}`;
+
+  // 棋盘
+  renderMonopolyBoard(s);
+  // 玩家列表
+  renderMonopolyPlayers(s);
+  // 日志
+  const logBox = $('#monopoly-log');
+  if (logBox) logBox.innerHTML = s.log.map(l => `<div class="log-line">${l.text}</div>`).reverse().join('');
+  // 操作按钮
+  renderMonopolyActions(s);
+}
+
+function monoPhaseText(phase) {
+  return ({ idle:'等待掷骰', rolling:'掷骰中', moving:'移动中', event:'事件', action:'操作', trading:'交易中', ended:'已结束' })[phase] || phase;
+}
+
+function renderMonopolyBoard(s) {
+  const board = $('#monopoly-board');
+  if (!board) return;
+  const cells = s.cells;
+  const N = cells.length;          // 24
+  // 环形布局：每边 side = N/4 个格子（含两个角），共4边。
+  // 角格子索引：0, 6, 12, 18（起点/监狱/中部/对角）
+  const side = N / 4;              // 6
+  const posMap = {};
+  s.players.forEach((p, i) => {
+    if (!posMap[p.position]) posMap[p.position] = [];
+    posMap[p.position].push(i);
+  });
+  const renderCell = (i) => {
+    const c = cells[i], cs = s.cellState[i];
+    const isCorner = (i % side === 0);
+    let ownerTag = '';
+    if (cs.type === 'ownable' && cs.owner >= 0) {
+      const owner = s.players[cs.owner];
+      ownerTag = `<div class="cell-owner" style="color:${ownerColor(cs.owner)}">${owner ? owner.name.slice(0,3) : ''}${cs.houses > 0 ? ' 🏠×'+cs.houses : ''}${cs.mortgaged ? ' 🔒' : ''}</div>`;
+    }
+    // 角格不放色条；地产色条放在靠环内一侧（CSS 处理方向）
+    const colorBar = (c.color && !isCorner) ? `<div class="cell-colorbar" style="background:${MONO_COLORS[c.color]||'#444'}"></div>` : '';
+    // 棋子：独立成行，避免与 owner 文字重叠
+    const tokens = (posMap[i]||[]).map(pi => `<span class="cell-token" style="color:${ownerColor(pi)}">${MONO_TOKENS[pi%4]}</span>`).join('');
+    const tokenRow = tokens ? `<div class="cell-tokens">${tokens}</div>` : '';
+    const icon = monoCellIcon(c.type);
+    return `<div class="mono-cell ${c.type} ${isCorner?'corner':''} ${'edge-'+edgeOf(i,side)}" data-idx="${i}" onclick="showMonopolyCell(${i})">
+      ${colorBar}
+      <div class="cell-icon">${icon}</div>
+      <div class="cell-name">${c.name}</div>
+      ${c.price ? `<div class="cell-price">¥${c.price}</div>` : ''}
+      <div class="cell-info-row">${ownerTag}${tokenRow}</div>
+    </div>`;
+  };
+  // 按"下边(右→左)→左边(下→上)→上边(左→右)→右边(上→下)"顺序填充，
+  // 使网格按行展开时形成顺时针环（起点0在右下角）
+  let html = '';
+  const bottom = [], left = [], top = [], right = [];
+  // 下边：角0 到 角6 之间，含两端 -> 从右到左：先 6 角 再 5..1 再 0 角
+  // 我们采用：行1=下边(角6...角0)，行2-5=左+右，行6=上边(角12...角18)
+  // 简化：用 grid-area 定位每个格子
+  for (let i = 0; i < N; i++) {
+    html += renderCell(i);
+  }
+  board.innerHTML = html;
+  // 用 data 属性 + CSS grid-area 实现环形
+  const styleId = 'mono-board-grid-style';
+  let gs = document.getElementById(styleId);
+  if (!gs) { gs = document.createElement('style'); gs.id = styleId; document.head.appendChild(gs); }
+  const lines = [];
+  for (let i = 0; i < N; i++) {
+    lines.push(`#monopoly-board .mono-cell[data-idx="${i}"]{grid-area:${gridAreaOf(i, side)};}`);
+  }
+  gs.textContent = lines.join('\n');
+}
+
+// 返回格子 i 所在边：'bottom'/'left'/'top'/'right'
+function edgeOf(i, side) {
+  const seg = Math.floor(i / side);
+  return ['bottom','left','top','right'][seg];
+}
+
+// 返回 grid-area 字符串。环顺时针：右下角格0 → 下边1-5 → 左下角6 → 左边7-11 → 左上角12 → 上边13-17 → 右上角18 → 右边19-23 → 回到格0
+// 角格在 0,6,12,18；每边5个非角格。物理网格为 (side+1)×(side+1)，外圈恰好 24 格。
+function gridAreaOf(i, side) {
+  const colMax = side + 1;   // 7 列
+  const rowMax = side + 1;   // 7 行
+  const isCorner = (i % side === 0);
+  if (isCorner) {
+    if (i === 0)           return `${rowMax} / ${colMax} / ${rowMax} / ${colMax}`;  // 右下
+    if (i === side)        return `${rowMax} / 1 / ${rowMax} / 1`;                  // 左下
+    if (i === 2 * side)   return `1 / 1 / 1 / 1`;                                   // 左上
+    return `1 / ${colMax} / 1 / ${colMax}`;                                          // 右上
+  }
+  const seg = Math.floor(i / side);
+  const off = i % side;     // 1..5
+  if (seg === 0) {         // 下边：col 从 colMax-1 递减到 2
+    const c = colMax - off;
+    return `${rowMax} / ${c} / ${rowMax} / ${c}`;
+  }
+  if (seg === 1) {         // 左边：row 从 rowMax-1 递减到 2
+    const r = rowMax - off;
+    return `${r} / 1 / ${r} / 1`;
+  }
+  if (seg === 2) {         // 上边：col 从 2 递增到 colMax-1
+    const c = 1 + off;
+    return `1 / ${c} / 1 / ${c}`;
+  }
+  // seg === 3：右边，row 从 2 递增到 rowMax-1
+  const r = 1 + off;
+  return `${r} / ${colMax} / ${r} / ${colMax}`;
+}
+
+function ownerColor(idx) {
+  return ['#3498DB','#E74C3C','#27AE60','#9B59B6'][idx % 4];
+}
+
+function monoCellIcon(type) {
+  return ({ start:'🏁', chance:'❓', fate:'🔮', jail:'🔒', tax:'💸', luxury_tax:'💎', property:'🏠', station:'🚂', utility:'⚡' })[type] || '▪';
+}
+
+function renderMonopolyPlayers(s) {
+  const box = $('#monopoly-players');
+  if (!box) return;
+  box.innerHTML = s.players.map((p, i) => {
+    const isCur = i === s.currentPlayer;
+    const rank = [...s.players].sort((a,b)=>b.netWorth-a.netWorth).findIndex(x=>x.id===p.id)+1;
+    return `<div class="mono-player ${isCur?'active':''}" style="border-left-color:${ownerColor(i)}">
+      <div class="mp-head">
+        <span class="mp-token">${MONO_TOKENS[i%4]}</span>
+        <span class="mp-name">${p.name}${isCur?' ▶':''}</span>
+        <span class="mp-rank">#${rank}</span>
+      </div>
+      <div class="mp-stats">
+        <span>💰 ${p.cash}</span>
+        <span>📊 ${p.netWorth}</span>
+        ${p.jailTurns>0?`<span>🔒${p.jailTurns}</span>`:''}
+        ${p.jailCards>0?`<span>🃏×${p.jailCards}</span>`:''}
+        ${p.bankrupt?'<span style="color:#e74c3c">破产</span>':''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showMonopolyCell(idx) {
+  if (!monopolyState) return;
+  const c = monopolyState.cells[idx];
+  const cs = monopolyState.cellState[idx];
+  const box = $('#monopoly-cell-info');
+  let html = `<div class="ci-name">${monoCellIcon(c.type)} ${c.name}</div>`;
+  if (c.type === 'property') {
+    html += `<div class="ci-type">地产 · 颜色组：${c.color}</div>`;
+    if (cs.owner >= 0) {
+      const owner = monopolyState.players[cs.owner];
+      html += `<div class="ci-owner">所有者：${owner.name}${cs.mortgaged?'（已抵押）':''}</div>`;
+      html += `<div class="ci-rent">房屋等级：${cs.houses}${cs.houses===5?' (酒店)':''}</div>`;
+      html += `<div class="ci-rent">租金：${c.rent.join(' / ')}</div>`;
+      // 若自己是所有者且可操作，显示建房/拆房/抵押
+      if (cs.owner === myGameIndex && !isSpectator && !monopolyState.ended) {
+        html += buildMonopolyManageButtons(idx, c, cs);
+      }
+    } else {
+      html += `<div class="ci-price">价格：¥${c.price} · 建房¥${c.housePrice}</div>`;
+      html += `<div class="ci-rent">租金阶梯：${c.rent.join(' / ')}</div>`;
+    }
+  } else if (c.type === 'station') {
+    html += `<div class="ci-type">车站</div>`;
+    if (cs.owner >= 0) { html += `<div class="ci-owner">所有者：${monopolyState.players[cs.owner].name}</div>`; }
+    html += `<div class="ci-price">价格：¥${c.price} · 持有数决定租金：${c.rent.join('/')}</div>`;
+  } else if (c.type === 'utility') {
+    html += `<div class="ci-type">公用设施</div>`;
+    if (cs.owner >= 0) { html += `<div class="ci-owner">所有者：${monopolyState.players[cs.owner].name}</div>`; }
+    html += `<div class="ci-price">价格：¥${c.price} · 骰点×${c.rent.join('/')}</div>`;
+  } else {
+    const desc = ({ start:'经过领¥200', chance:'抽机会卡', fate:'抽命运卡', jail:'入狱/探监', tax:'所得税¥100', luxury_tax:'奢侈税¥100' })[c.type] || '';
+    html += `<div class="ci-type">${desc}</div>`;
+  }
+  box.innerHTML = html;
+}
+
+function buildMonopolyManageButtons(idx, c, cs) {
+  let btns = '';
+  const canBuild = (() => {
+    const setCells = monopolyState.cells.map((cc,i)=>({cc,i})).filter(x=>x.cc.color===c.color);
+    const minH = Math.min(...setCells.map(x=>monopolyState.cellState[x.i].houses));
+    return cs.houses < 5 && cs.houses === minH && monopolyState.players[myGameIndex].cash >= c.housePrice;
+  })();
+  if (canBuild) btns += `<button class="mini-btn" onclick="sendMonoBuild(${idx})">建房 ¥${c.housePrice}</button>`;
+  if (cs.houses > 0) btns += `<button class="mini-btn" onclick="sendMonoSellHouse(${idx})">拆房 +¥${Math.floor(c.housePrice/2)}</button>`;
+  if (!cs.mortgaged && cs.houses === 0) btns += `<button class="mini-btn" onclick="sendMonoMortgage(${idx})">抵押 +¥${Math.floor(c.price/2)}</button>`;
+  if (cs.mortgaged) btns += `<button class="mini-btn" onclick="sendMonoRedeem(${idx})">赎回 -¥${Math.ceil(c.price*0.55)}</button>`;
+  return `<div class="ci-manage">${btns}</div>`;
+}
+
+function renderMonopolyActions(s) {
+  const box = $('#monopoly-actions');
+  if (!box) return;
+  if (s.ended) {
+    box.innerHTML = hasRequestedNextRound
+      ? '<div class="poker-waiting">已确认，等待其他玩家...</div>'
+      : '<button class="poker-btn" style="background:#27ae60" onclick="sendMonoNextRound()">再来一局</button>';
+    return;
+  }
+  if (isSpectator) { box.innerHTML = '<div class="poker-waiting">观战中</div>'; return; }
+  const me = s.players[myGameIndex];
+  if (me && me.bankrupt) { box.innerHTML = '<div class="poker-waiting">你已破产</div>'; return; }
+  // 若有待处理的落地决策（购买/管理），操作区由 renderMonopolyActionRequest 负责渲染，此处不覆盖
+  if (s.pendingResolve && s.currentPlayer === myGameIndex) return;
+  const isMyTurn = s.currentPlayer === myGameIndex && s.phase === 'idle';
+  let html = '';
+  if (isMyTurn) {
+    html += `<button class="poker-btn" style="background:#e67e22;font-size:18px" onclick="sendMonoRoll()">🎲 掷骰</button>`;
+  }
+  if (me && me.jailTurns > 0 && s.currentPlayer === myGameIndex) {
+    if (me.jailCards > 0) html += `<button class="poker-btn" onclick="sendMonoUseJailCard()">🃏 出狱卡</button>`;
+    if (me.cash >= 200) html += `<button class="poker-btn" onclick="sendMonoPayBail()">💰 交保释金</button>`;
+  }
+  if (!html) html = '<div class="poker-waiting">等待其他玩家操作...</div>';
+  box.innerHTML = html;
+}
+
+function renderMonopolyActionRequest(d) {
+  // 非自己回合或非当前游戏忽略（但 handle 流程会保证时机）
+  const box = $('#monopoly-actions');
+  if (!box) return;
+  if (d.actions && d.actions.includes('buy')) {
+    box.innerHTML = `<div class="mono-prompt">${d.reason}</div>
+      <button class="poker-btn" style="background:#27ae60" onclick="sendMonoAction('buy')">购买</button>
+      <button class="poker-btn" style="background:#7f8c8d" onclick="sendMonoAction('pass')">不买</button>`;
+    return;
+  }
+  // manage 类型：动态渲染可操作按钮
+  const actions = d.actions || [];
+  const opts = d.opts || {};
+  let html = `<div class="mono-prompt">${d.reason || '请选择操作'}</div>`;
+  const BTN = (label, choice, color) => `<button class="poker-btn" style="background:${color}" onclick="sendMonoAction('${choice}')">${label}</button>`;
+  if (actions.includes('build')) html += BTN(`🏠 建房 ¥${opts.buildPrice}`, 'build', '#27ae60');
+  if (actions.includes('sellHouse')) html += BTN(`🔻 拆房 +¥${opts.sellBack}`, 'sellHouse', '#e67e22');
+  if (actions.includes('mortgage')) html += BTN(`🔒 抵押 +¥${opts.mortgageAmt}`, 'mortgage', '#8e44ad');
+  if (actions.includes('redeem')) html += BTN(`🔓 赎回 -¥${opts.redeemCost}`, 'redeem', '#2980b9');
+  html += `<button class="poker-btn" style="background:#7f8c8d" onclick="sendMonoAction('pass')">结束操作</button>`;
+  box.innerHTML = html;
+}
+
+function renderMonopolyOver(d) {
+  let html = '<div class="mono-settle"><h3>🏁 对局结束</h3>';
+  html += `<p>冠军：<b style="color:#f1c40f">${d.winner}</b></p>`;
+  if (d.settlement) {
+    html += '<table class="settle-table"><tr><th>名次</th><th>玩家</th><th>净资产</th><th>现金</th></tr>';
+    d.settlement.forEach(r => {
+      html += `<tr><td>${r.rank}</td><td>${r.name}</td><td>${r.netWorth}</td><td>${r.cash}</td></tr>`;
+    });
+    html += '</table>';
+  }
+  html += '</div>';
+  $('#monopoly-cell-info').innerHTML = html;
+  $('#monopoly-actions').innerHTML = hasRequestedNextRound
+    ? '<div class="poker-waiting">已确认，等待其他玩家...</div>'
+    : '<button class="poker-btn" style="background:#27ae60" onclick="sendMonoNextRound()">再来一局</button>';
+}
+
+/* ---- 大富翁交易发起弹窗 ---- */
+let monoTradeTarget = -1;
+function openMonopolyTrade() {
+  if (!monopolyState || monopolyState.ended) { alert('当前无法交易'); return; }
+  const me = monopolyState.players[myGameIndex];
+  const others = monopolyState.players.filter(p => p.index !== myGameIndex && !p.bankrupt);
+  if (others.length === 0) { alert('没有可交易的玩家'); return; }
+  const body = $('#mono-trade-body');
+  let html = '<div class="mono-trade-col"><h4>交易对象</h4><select id="mono-trade-to">';
+  others.forEach(p => html += `<option value="${p.index}">${p.name}</option>`);
+  html += '</select></div>';
+  // 我给出的
+  const myProps = monopolyState.cells.map((c,i)=>({c,i})).filter(x => monopolyState.cellState[x.i].owner === myGameIndex && !monopolyState.cellState[x.i].mortgaged);
+  html += '<div class="mono-trade-col"><h4>我给出</h4>';
+  html += '<label>现金 <input type="number" id="mt-offer-cash" value="0" min="0" max="'+me.cash+'" style="width:80px"></label>';
+  if (me.jailCards > 0) html += `<label>出狱卡 <input type="number" id="mt-offer-card" value="0" min="0" max="${me.jailCards}" style="width:50px"></label>`;
+  html += '<div class="mt-props">' + (myProps.length ? myProps.map(x => `<label><input type="checkbox" value="${x.i}" class="mt-offer-prop">${x.c.name}</label>`).join('') : '无地产') + '</div></div>';
+  // 我要求的（从对方拿）
+  const firstOther = others[0];
+  const theirProps = monopolyState.cells.map((c,i)=>({c,i})).filter(x => monopolyState.cellState[x.i].owner === firstOther.index && !monopolyState.cellState[x.i].mortgaged);
+  html += '<div class="mono-trade-col"><h4>我要求对方给出</h4>';
+  html += `<label>现金 <input type="number" id="mt-req-cash" value="0" min="0" style="width:80px"></label>`;
+  if (firstOther.jailCards > 0) html += `<label>出狱卡 <input type="number" id="mt-req-card" value="0" min="0" max="${firstOther.jailCards}" style="width:50px"></label>`;
+  html += '<div class="mt-props" id="mt-req-props">' + (theirProps.length ? theirProps.map(x => `<label><input type="checkbox" value="${x.i}" class="mt-req-prop">${x.c.name}</label>`).join('') : '无地产') + '</div></div>';
+  body.innerHTML = html;
+  monoTradeTarget = firstOther.index;
+  $('#mono-trade-to').onchange = (e) => {
+    monoTradeTarget = parseInt(e.target.value);
+    const op = monopolyState.players[monoTradeTarget];
+    const tp = monopolyState.cells.map((c,i)=>({c,i})).filter(x => monopolyState.cellState[x.i].owner === monoTradeTarget && !monopolyState.cellState[x.i].mortgaged);
+    const cardInput = document.getElementById('mt-req-card');
+    if (cardInput) { cardInput.max = op.jailCards; }
+    const propsBox = $('#mt-req-props');
+    if (propsBox) propsBox.innerHTML = tp.length ? tp.map(x=>`<label><input type="checkbox" value="${x.i}" class="mt-req-prop">${x.c.name}</label>`).join('') : '无地产';
+  };
+  $('#monopoly-trade-modal').style.display = 'flex';
+}
+
+function sendMonopolyTradeOffer() {
+  const offerCash = parseInt($('#mt-offer-cash').value) || 0;
+  const offerCard = parseInt($('#mt-offer-card')?.value) || 0;
+  const offerProps = [...document.querySelectorAll('.mt-offer-prop:checked')].map(c => parseInt(c.value));
+  const reqCash = parseInt($('#mt-req-cash').value) || 0;
+  const reqCard = parseInt($('#mt-req-card')?.value) || 0;
+  const reqProps = [...document.querySelectorAll('.mt-req-prop:checked')].map(c => parseInt(c.value));
+  send({ type: 'tradeOffer', to: monoTradeTarget,
+    offer: { cash: offerCash, jailCards: offerCard, properties: offerProps },
+    request: { cash: reqCash, jailCards: reqCard, properties: reqProps } });
+  $('#monopoly-trade-modal').style.display = 'none';
+}
+
+function renderMonopolyTradeOffer(d) {
+  const body = $('#mono-trade-offer-body');
+  const fmtProps = (arr) => arr && arr.length ? arr.map(i => monopolyState.cells[i].name).join('、') : '无';
+  body.innerHTML = `<p><b>${d.fromName}</b> 提议交易：</p>
+    <div class="mono-trade-col"><h4>对方给出</h4>
+      <div>现金：¥${d.offer.cash||0}</div>
+      <div>出狱卡：${d.offer.jailCards||0}</div>
+      <div>地产：${fmtProps(d.offer.properties)}</div>
+    </div>
+    <div class="mono-trade-col"><h4>对方要求</h4>
+      <div>现金：¥${d.request.cash||0}</div>
+      <div>出狱卡：${d.request.jailCards||0}</div>
+      <div>地产：${fmtProps(d.request.properties)}</div>
+    </div>`;
+  $('#monopoly-trade-offer-modal').style.display = 'flex';
+}
+
+/* ---- 发送操作 ---- */
+function sendMonoRoll() { send({ type: 'roll' }); }
+function sendMonoAction(choice) { send({ type: 'action', choice }); }
+function sendMonoBuild(cell) { send({ type: 'build', cell }); }
+function sendMonoSellHouse(cell) { send({ type: 'sellHouse', cell }); }
+function sendMonoMortgage(cell) { send({ type: 'mortgage', cell }); }
+function sendMonoRedeem(cell) { send({ type: 'redeem', cell }); }
+function sendMonoUseJailCard() { send({ type: 'useJailCard' }); }
+function sendMonoPayBail() { send({ type: 'payBail' }); }
+function sendMonoNextRound() {
+  hasRequestedNextRound = true;
+  send({ type: 'nextRound' });
+}
+
+/* ---- 退出对局 ---- */
+function leaveMonopoly() {
+  monopolyGameActive = false;
+  send({ type: 'backToRoom' });
 }
 </script>
 </body>

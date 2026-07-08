@@ -1164,3 +1164,129 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   .mj-seat-info { font-size: 10px; }
   .mj-seat-detail { font-size: 9px; }
 }
+
+/* ==================== 大富翁 ==================== */
+#view-monopoly {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: #2c3e50;
+}
+#monopoly-top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px; background: #1a252f; border-bottom: 2px solid #f39c12;
+  color: #fff; font-size: 14px;
+}
+#monopoly-top-bar button {
+  background: #0f3460; border: none; color: #fff; padding: 6px 12px;
+  border-radius: 4px; cursor: pointer; font-size: 13px; margin-left: 6px;
+}
+#monopoly-top-bar button:hover { background: #1a5276; }
+#monopoly-main { flex: 1; display: flex; overflow: hidden; }
+#monopoly-board {
+  flex: 1;
+  display: grid;
+  /* 7 行 × 7 列，外圈共 24 格，正好容纳环形地图 */
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(7, 1fr);
+  gap: 3px; padding: 8px;
+  background: #1e2a38;
+  align-content: stretch;
+  justify-content: stretch;
+}
+.mono-cell {
+  background: #ecf0f1; border-radius: 5px; padding: 4px 5px; cursor: pointer;
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  font-size: 12px; color: #2c3e50; overflow: hidden; min-height: 0;
+  border: 1px solid #bdc3c7; transition: transform .1s;
+}
+.mono-cell:hover { transform: scale(1.05); z-index: 5; box-shadow: 0 2px 10px rgba(0,0,0,.5); }
+/* 非角功能格背景 */
+.mono-cell.chance { background: #9b59b6; color: #fff; }
+.mono-cell.fate { background: #e67e22; color: #fff; }
+.mono-cell.tax, .mono-cell.luxury_tax { background: #34495e; color: #fff; }
+.mono-cell.station { background: #dfe6e9; }
+.mono-cell.utility { background: #d5f5e3; }
+/* 角格子（起点/监狱等）：更醒目 */
+.mono-cell.corner {
+  background: #f1c40f; font-weight: bold;
+}
+.mono-cell.corner.jail { background: #e74c3c; color: #fff; }
+.mono-cell.corner.start { background: #f1c40f; }
+/* 色条方向：地产色条贴在靠棋盘中心的一侧 */
+.cell-colorbar { width: 100%; height: 8px; border-radius: 2px; margin-bottom: 3px; }
+.mono-cell.edge-bottom .cell-colorbar { margin: 0 0 3px 0; }
+.mono-cell.edge-top .cell-colorbar { order: 99; margin: 3px 0 0 0; }
+.mono-cell.edge-left .cell-colorbar { order: 99; margin: 0 0 0 3px; }
+.mono-cell.edge-right .cell-colorbar { margin: 0 3px 0 0; }
+.cell-icon { font-size: 26px; text-align: center; line-height: 1; margin: 2px 0; }
+.mono-cell.corner .cell-icon { font-size: 34px; }
+.cell-name { font-weight: bold; text-align: center; line-height: 1.1; margin: 1px 0; font-size: 11px; }
+.mono-cell.corner .cell-name { font-size: 12px; }
+.cell-price { text-align: center; color: #555; font-size: 10px; }
+/* 底部信息行：owner 文字与棋子左右分置，物理上不会重叠 */
+.cell-info-row {
+  margin-top: auto; width: 100%;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 2px; padding-top: 2px;
+}
+.cell-owner {
+  font-size: 9px; font-weight: bold; line-height: 1;
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cell-tokens {
+  display: flex; align-items: center; justify-content: flex-end;
+  flex-shrink: 0; line-height: 1;
+}
+.cell-token { font-size: 20px; margin-left: -3px; }
+.mono-cell.corner .cell-token { font-size: 26px; }
+.cell-token:first-child { margin-left: 0; }
+
+#monopoly-sidebar {
+  width: 300px; display: flex; flex-direction: column; gap: 8px;
+  padding: 8px; background: #1a252f; border-left: 2px solid #f39c12; overflow-y: auto;
+}
+#monopoly-players { display: flex; flex-direction: column; gap: 6px; }
+.mono-player {
+  background: #2c3e50; border-left: 4px solid #3498db; border-radius: 5px;
+  padding: 6px 8px; color: #ecf0f1;
+}
+.mono-player.active { background: #34495e; box-shadow: 0 0 0 1px #f1c40f; }
+.mp-head { display: flex; align-items: center; gap: 6px; }
+.mp-token { font-size: 18px; }
+.mp-name { flex: 1; font-weight: bold; font-size: 13px; }
+.mp-rank { color: #f1c40f; font-size: 12px; }
+.mp-stats { display: flex; gap: 10px; font-size: 11px; color: #bdc3c7; margin-top: 2px; flex-wrap: wrap; }
+
+.mono-cell-info {
+  background: #34495e; border-radius: 6px; padding: 8px; color: #ecf0f1;
+  font-size: 12px; min-height: 80px;
+}
+.ci-name { font-size: 15px; font-weight: bold; color: #f1c40f; margin-bottom: 4px; }
+.ci-type, .ci-owner, .ci-price, .ci-rent { margin: 2px 0; color: #bdc3c7; }
+.ci-manage { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+.mini-btn {
+  background: #0f3460; color: #fff; border: none; border-radius: 3px;
+  padding: 4px 8px; font-size: 11px; cursor: pointer;
+}
+.mini-btn:hover { background: #1a5276; }
+
+.mono-actions { display: flex; flex-direction: column; gap: 6px; }
+.mono-actions .poker-btn { width: 100%; }
+.mono-prompt { color: #f1c40f; font-size: 13px; margin-bottom: 4px; }
+
+#monopoly-log { max-height: 180px; }
+
+.mono-trade-col { background: #2c3e50; border-radius: 5px; padding: 8px; margin: 6px 0; }
+.mono-trade-col h4 { color: #f1c40f; margin: 0 0 6px 0; font-size: 13px; }
+.mono-trade-col label { display: block; font-size: 12px; color: #ecf0f1; margin: 4px 0; }
+.mt-props label { display: block; }
+.mono-settle table { margin: 8px 0; }
+
+@media (max-width: 768px) {
+  #monopoly-main { flex-direction: column; }
+  #monopoly-sidebar { width: 100%; max-height: 45vh; border-left: none; border-top: 2px solid #f39c12; }
+  #monopoly-board { grid-template-columns: repeat(4, 1fr); }
+  .mono-cell { min-height: 60px; }
+}

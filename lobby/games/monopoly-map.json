@@ -1,0 +1,63 @@
+{
+  "meta": {
+    "name": "精简版大富翁",
+    "version": 1,
+    "totalCells": 24,
+    "startBonus": 200,
+    "jailIndex": 6,
+    "jailBail": 50,
+    "incomeTaxAmount": 100,
+    "luxuryTaxAmount": 100,
+    "maxRounds": 30
+  },
+  "cells": [
+    { "index": 0,  "type": "start",       "name": "起点" },
+    { "index": 1,  "type": "property",    "name": "春熙路",   "price": 60,  "color": "brown",    "rent": [2, 10, 30, 90, 160, 250],   "housePrice": 50 },
+    { "index": 2,  "type": "chance",      "name": "机会" },
+    { "index": 3,  "type": "property",    "name": "太古里",   "price": 80,  "color": "brown",    "rent": [4, 20, 60, 180, 320, 450],  "housePrice": 50 },
+    { "index": 4,  "type": "tax",         "name": "所得税",   "amount": 100 },
+    { "index": 5,  "type": "station",     "name": "东站",     "price": 200, "color": "station", "rent": [25, 50, 100, 200] },
+    { "index": 6,  "type": "jail",        "name": "监狱" },
+    { "index": 7,  "type": "property",    "name": "锦里",     "price": 100, "color": "lightblue","rent": [6, 30, 90, 270, 400, 550],  "housePrice": 50 },
+    { "index": 8,  "type": "chance",      "name": "机会" },
+    { "index": 9,  "type": "property",    "name": "宽窄巷子", "price": 120, "color": "lightblue","rent": [8, 40, 120, 360, 560, 800], "housePrice": 50 },
+    { "index": 10, "type": "property",    "name": "武侯祠",   "price": 140, "color": "pink",    "rent": [10, 50, 150, 450, 625, 750], "housePrice": 100 },
+    { "index": 11, "type": "utility",     "name": "电力公司", "price": 150, "color": "utility", "rent": [4, 10] },
+    { "index": 12, "type": "property",    "name": "杜甫草堂", "price": 160, "color": "pink",    "rent": [12, 60, 180, 500, 700, 900], "housePrice": 100 },
+    { "index": 13, "type": "fate",        "name": "命运" },
+    { "index": 14, "type": "station",     "name": "南站",     "price": 200, "color": "station", "rent": [25, 50, 100, 200] },
+    { "index": 15, "type": "property",    "name": "天府广场", "price": 180, "color": "orange",  "rent": [14, 70, 200, 550, 750, 950], "housePrice": 100 },
+    { "index": 16, "type": "chance",      "name": "机会" },
+    { "index": 17, "type": "property",    "name": "熊猫基地", "price": 200, "color": "orange",  "rent": [16, 80, 240, 660, 800, 1000],"housePrice": 100 },
+    { "index": 18, "type": "property",    "name": "金沙遗址", "price": 220, "color": "red",     "rent": [18, 90, 270, 750, 950, 1150],"housePrice": 150 },
+    { "index": 19, "type": "fate",        "name": "命运" },
+    { "index": 20, "type": "property",    "name": "都江堰",   "price": 240, "color": "red",     "rent": [20, 100, 300, 750, 925, 1100],"housePrice": 150 },
+    { "index": 21, "type": "utility",     "name": "自来水厂", "price": 150, "color": "utility", "rent": [4, 10] },
+    { "index": 22, "type": "property",    "name": "青城山",   "price": 280, "color": "yellow",  "rent": [22, 110, 330, 800, 975, 1150],"housePrice": 150 },
+    { "index": 23, "type": "luxury_tax",  "name": "奢侈税",   "amount": 100 }
+  ],
+  "chanceCards": [
+    { "id": "ch01", "text": "银行结息，获得 100 元。",                  "type": "gain",       "amount": 100 },
+    { "id": "ch02", "text": "维修房屋，每座房子付 25 元。",              "type": "repair",     "perHouse": 25 },
+    { "id": "ch03", "text": "前进到起点，领取 200 元。",                "type": "moveTo",     "target": 0 },
+    { "id": "ch04", "text": "前进到最近的车站，无需付过路费。",          "type": "moveToType", "cellType": "station" },
+    { "id": "ch05", "text": "后退 2 格。",                              "type": "moveBy",     "steps": -2 },
+    { "id": "ch06", "text": "直接去监狱，不经过起点。",                  "type": "goToJail" },
+    { "id": "ch07", "text": "出狱卡，可保留以备不时之需。",              "type": "getOutOfJail" },
+    { "id": "ch08", "text": "生日快乐！每位玩家送你 50 元。",            "type": "collectFromOthers", "amount": 50 },
+    { "id": "ch09", "text": "前进到天府广场。",                         "type": "moveTo",     "target": 15 },
+    { "id": "ch10", "text": "买彩票中奖，获得 150 元。",                "type": "gain",       "amount": 150 }
+  ],
+  "fateCards": [
+    { "id": "fa01", "text": "违章停车，罚款 50 元。",                   "type": "lose",       "amount": 50 },
+    { "id": "fa02", "text": "股票分红，获得 150 元。",                   "type": "gain",       "amount": 150 },
+    { "id": "fa03", "text": "前进到起点，领取 200 元。",                "type": "moveTo",     "target": 0 },
+    { "id": "fa04", "text": "直接去监狱，不经过起点。",                  "type": "goToJail" },
+    { "id": "fa05", "text": "出狱卡，可保留以备不时之需。",              "type": "getOutOfJail" },
+    { "id": "fa06", "text": "遗产继承，获得 200 元。",                   "type": "gain",       "amount": 200 },
+    { "id": "fa07", "text": "医疗费用，支付 100 元。",                 "type": "lose",       "amount": 100 },
+    { "id": "fa08", "text": "退回太古里。",                              "type": "moveTo",     "target": 3 },
+    { "id": "fa09", "text": "请每位玩家吃饭，付给每人 50 元。",          "type": "payOthers",  "amount": 50 },
+    { "id": "fa10", "text": "中彩票，获得 200 元。",                    "type": "gain",       "amount": 200 }
+  ]
+}
