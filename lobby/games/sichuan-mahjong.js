@@ -18,6 +18,7 @@ class SichuanMahjongEngine {
     this._send = sendFn;
     this._log = logFn || (() => {});
     this.playerCount = players.length;
+    this.initialScores = [...initialScores];  // 保存本局开始时的分数，用于计算变化量（对局总账）
     this.players = players.map((p, i) => ({
       ...p,
       index: i,
@@ -31,6 +32,7 @@ class SichuanMahjongEngine {
       disconnected: false,
       lastDrawn: null,
       fanDetail: null,
+      gangGain: 0,  // 本局杠净收入（用于杠上炮转移、流局退税）
     }));
     this.deck = [];
     this.discardPile = [];
@@ -49,6 +51,7 @@ class SichuanMahjongEngine {
     this.exchangeCards = [];
     this.diceResult = null;
     this.firstHuPlayerIndex = -1;
+    this.gangTransactions = [];  // 本局杠分交易 {from, to, amount}，流局退税用
   }
 
   /* ==================== 初始化 ==================== */
@@ -682,6 +685,8 @@ class SichuanMahjongEngine {
     if (!this.players[fromIdx].isHu) {
       this.players[fromIdx].score -= 2;
       player.score += 2;
+      player.gangGain += 2;  // 记录本局杠收入（杠上炮转移/流局退税用）
+      this.gangTransactions.push({ from: fromIdx, to: idx, amount: 2 });
       this.logs.push(`${player.name} 明杠收分 +2`);
     }
 
@@ -729,6 +734,8 @@ class SichuanMahjongEngine {
     const gain = losers.length * 2;
     for (const p of losers) p.score -= 2;
     player.score += gain;
+    player.gangGain += gain;  // 记录本局杠收入
+    for (const p of losers) this.gangTransactions.push({ from: p.index, to: idx, amount: 2 });
     this.logs.push(`${player.name} 暗杠收分 +${gain}`);
 
     const hasAction = this._drawExtra(idx);
@@ -796,6 +803,8 @@ class SichuanMahjongEngine {
     const gain = losers.length;
     for (const p of losers) p.score -= 1;
     this.players[idx].score += gain;
+    this.players[idx].gangGain += gain;  // 记录本局杠收入
+    for (const p of losers) this.gangTransactions.push({ from: p.index, to: idx, amount: 1 });
     this.logs.push(`${this.players[idx].name} 加杠收分 +${gain}`);
     this._log(`[engine] P${idx}加杠完成${tileLabel(tile)}, 收${gain}分`);
     const hasAction = this._drawExtra(idx);
@@ -819,9 +828,10 @@ class SichuanMahjongEngine {
     }
 
     const { totalFan, fans } = this._calcFan(idx, tile, isZimo);
-    const baseScore = Math.pow(2, totalFan - 1);
+    const baseScore = Math.pow(2, totalFan);  // 单家赔付 = 2^总番数（底分1，无封顶）
 
     let gained = 0;
+    let gangTransfer = 0;  // 杠上炮转移的杠钱
     if (isZimo) {
       const losers = this.players.filter((p, i) => i !== idx && !p.isHu);
       const eachPay = baseScore;
@@ -832,14 +842,24 @@ class SichuanMahjongEngine {
       if (fromIdx !== idx && !this.players[fromIdx].isHu) {
         this.players[fromIdx].score -= baseScore;
         gained = baseScore;
+
+        // 杠上炮（呼叫转移）：杠完打牌点炮时，点炮者本局收的杠钱全部转给胡家
+        const isGangShangPao = this.players[fromIdx].gangDrawFlag === true;
+        if (isGangShangPao && this.players[fromIdx].gangGain > 0) {
+          gangTransfer = this.players[fromIdx].gangGain;
+          this.players[fromIdx].score -= gangTransfer;
+          this.players[fromIdx].gangGain = 0;
+          gained += gangTransfer;  // 转移的钱计入胡家收入
+          this.logs.push(`${player.name} 杠上炮转移 ${this.players[fromIdx].name} 杠钱 +${gangTransfer}`);
+        }
       }
     }
     player.score += gained;
-    player.fanDetail = { totalFan, fans, baseScore, isZimo };
+    player.fanDetail = { totalFan, fans, baseScore, isZimo, gangTransfer };
 
     const fanStr = fans.map(f => f.label).join(' ');
-    this.logs.push(`${player.name} 胡了${isZimo ? '（自摸）' : '（点炮）'} +${gained} [${totalFan}番 ${fanStr}]`);
-    this._log(`[engine] P${idx}胡牌${isZimo ? '(自摸)' : '(点炮)'} tile=${tileLabel(tile)}, ${totalFan}番, ${fans.map(f => f.label).join('+')}, 得${gained}分, 总${player.score}分`);
+    this.logs.push(`${player.name} 胡了${isZimo ? '（自摸）' : '（点炮）'} +${gained}${gangTransfer ? '(含转移杠钱' + gangTransfer + ')' : ''} [${totalFan}番 ${fanStr}]`);
+    this._log(`[engine] P${idx}胡牌${isZimo ? '(自摸)' : '(点炮)'} tile=${tileLabel(tile)}, ${totalFan}番, ${fans.map(f => f.label).join('+')}, 得${gained}分${gangTransfer ? '(含杠上炮转移' + gangTransfer + ')' : ''}, 总${player.score}分`);
   }
 
   /* ==================== 胡牌检测 ==================== */
@@ -915,7 +935,16 @@ class SichuanMahjongEngine {
     return false;
   }
 
-  /* ==================== 番数计算 ==================== */
+  /* ==================== 番数计算 ====================
+   * 成都血战到底规则（底分=1，无封顶）：
+   *   单家赔付 = 2^总番数
+   * 基础牌型（互斥取一）：
+   *   平胡0 / 对对胡1 / 清一色2 / 七对2 / 龙七对3 / 清对3 / 清七对3
+   * 叠加项（+1番/项）：
+   *   金钩钓、自摸、杠上花、杠上炮、抢杠胡、海底捞月、根(每杠+1)
+   * 注：清对=清一色+对对胡(固定3番)，清七对=清一色+七对(固定3番)，
+   *     取复合番型后不再单独记清一色/对对胡/七对。
+   */
   _calcFan(idx, huTile, isZimo) {
     const player = this.players[idx];
     const allTiles = isZimo ? [...player.hand] : [...player.hand, huTile];
@@ -926,39 +955,53 @@ class SichuanMahjongEngine {
     const isDuiDuiHu = this._isDuiDuiHu(allTiles, player.melds);
     const isQingYiSe = this._isQingYiSe(allTiles, player.melds, player.dingque);
 
-    if (isLongQiDui) {
-      fans.push({ name: 'longqidui', label: '龙七对', fan: 4 });
+    // 基础牌型（互斥取一，复合番型优先）
+    if (isQingYiSe && isLongQiDui) {
+      fans.push({ name: 'qinglongqidui', label: '清龙七对', fan: 4 });
+    } else if (isQingYiSe && isQiDui) {
+      fans.push({ name: 'qingqidui', label: '清七对', fan: 3 });      // 清一色+七对 固定3番
+    } else if (isQingYiSe && isDuiDuiHu) {
+      fans.push({ name: 'qingdui', label: '清对', fan: 3 });          // 清一色+对对胡 固定3番
+    } else if (isLongQiDui) {
+      fans.push({ name: 'longqidui', label: '龙七对', fan: 3 });
     } else if (isQiDui) {
       fans.push({ name: 'qidui', label: '七对', fan: 2 });
     } else if (isDuiDuiHu) {
-      fans.push({ name: 'duiduihu', label: '对对胡', fan: 2 });
+      fans.push({ name: 'duiduihu', label: '对对胡', fan: 1 });
+    } else if (isQingYiSe) {
+      fans.push({ name: 'qingyise', label: '清一色', fan: 2 });
     } else {
-      fans.push({ name: 'pinghu', label: '平胡', fan: 1 });
+      fans.push({ name: 'pinghu', label: '平胡', fan: 0 });
     }
 
-    // 金钩钓：手里只剩1张牌单吊，其余全在碰杠中
+    // 金钩钓：手里只剩1张牌单吊，其余全在碰杠中（+1番，可叠加）
     const handTileCount = isZimo ? player.hand.length - 1 : player.hand.length;
     if (handTileCount === 1) {
-      fans.push({ name: 'jingoudiao', label: '金钩钓', fan: 2 });
+      fans.push({ name: 'jingoudiao', label: '金钩钓', fan: 1 });
     }
 
-    if (isQingYiSe) {
-      fans.push({ name: 'qingyise', label: '清一色', fan: 4 });
-    }
-
+    // 根（杠）：手里每有1组四张相同牌，+1番
     const genCount = this._countGen(player.melds);
     if (genCount > 0) {
       fans.push({ name: 'gen', label: `带根x${genCount}`, fan: genCount });
     }
 
+    // 自摸 +1番
+    if (isZimo) {
+      fans.push({ name: 'zimo', label: '自摸', fan: 1 });
+    }
+
+    // 杠上花：杠后补牌自摸
     if (isZimo && player.gangDrawFlag) {
       fans.push({ name: 'gangshanghua', label: '杠上花', fan: 1 });
     }
 
+    // 海底捞月：牌墙最后一张自摸
     if (isZimo && this.deck.length === 0) {
       fans.push({ name: 'haidilaoyue', label: '海底捞月', fan: 1 });
     }
 
+    // 杠上炮：杠完打牌点炮
     if (!isZimo) {
       const fromIdx = this.jiagangPending ? this.jiagangPending.idx : this.currentPlayer;
       if (this.players[fromIdx] && this.players[fromIdx].gangDrawFlag) {
@@ -966,20 +1009,14 @@ class SichuanMahjongEngine {
       }
     }
 
+    // 海底炮（点炮者打最后一张）
     if (!isZimo && this.deck.length === 0) {
       fans.push({ name: 'haidipao', label: '海底炮', fan: 1 });
     }
 
+    // 抢杠胡：别人补杠你胡那张
     if (!isZimo && this.jiagangPending) {
       fans.push({ name: 'qiangganghu', label: '抢杠胡', fan: 1 });
-    }
-
-    if (player.discards.length === 0 && this.turn === 0 && !player.gangDrawFlag) {
-      if (idx === this.dealerIndex) {
-        fans.push({ name: 'tianhu', label: '天胡', fan: 2 });
-      } else {
-        fans.push({ name: 'dihu', label: '地胡', fan: 2 });
-      }
     }
 
     const totalFan = fans.reduce((sum, f) => sum + f.fan, 0);
@@ -1076,6 +1113,21 @@ class SichuanMahjongEngine {
     return false;
   }
 
+  /* 计算玩家听牌的最大番数（流局查叫/花猪赔付用）
+   * 遍历所有听张，模拟"点炮胡"算番（不含自摸+1等情境番），取最大值。
+   */
+  _calcTingMaxFan(idx) {
+    const player = this.players[idx];
+    const tingTiles = this._getTingTiles(player.hand, player.dingque);
+    if (tingTiles.length === 0) return 0;
+    let maxFan = 0;
+    for (const t of tingTiles) {
+      const { totalFan } = this._calcFan(idx, t, false);
+      if (totalFan > maxFan) maxFan = totalFan;
+    }
+    return maxFan;
+  }
+
   _getTingTiles(hand, dingque) {
     if (hand.some(t => t.suit === dingque)) return [];
     const result = [];
@@ -1132,10 +1184,14 @@ class SichuanMahjongEngine {
       }
     }
 
+    // 花猪赔所有非花猪玩家（按对方听牌最大番，2^番；未听的非花猪按0番=1分）
     for (const hzIdx of huaZhuPlayers) {
       for (const nonHzIdx of nonHuaZhuPlayers) {
-        this.players[hzIdx].score -= 2;
-        this.players[nonHzIdx].score += 2;
+        const maxFan = this._calcTingMaxFan(nonHzIdx);
+        const pay = Math.pow(2, maxFan);
+        this.players[hzIdx].score -= pay;
+        this.players[nonHzIdx].score += pay;
+        this.logs.push(`${this.players[hzIdx].name} 花猪赔${this.players[nonHzIdx].name} ${pay}分`);
       }
       this.logs.push(`${this.players[hzIdx].name} 花猪`);
     }
@@ -1150,10 +1206,13 @@ class SichuanMahjongEngine {
       }
     }
 
+    // 查大叫：未听者（非花猪）赔每个听牌者，按听牌者实际最大番
     for (const noIdx of noJiaoPlayers) {
       for (const jIdx of jiaoPlayers) {
-        this.players[noIdx].score -= 1;
-        this.players[jIdx].score += 1;
+        const maxFan = this._calcTingMaxFan(jIdx);
+        const pay = Math.pow(2, maxFan);
+        this.players[noIdx].score -= pay;
+        this.players[jIdx].score += pay;
       }
       if (jiaoPlayers.length > 0) {
         this.logs.push(`${this.players[noIdx].name} 未叫`);
@@ -1162,6 +1221,35 @@ class SichuanMahjongEngine {
 
     for (const jIdx of jiaoPlayers) {
       this.logs.push(`${this.players[jIdx].name} 下叫`);
+    }
+
+    // 流局退税：花猪 + 未听者退回本局收的杠钱（回滚它作为收款方的交易）
+    const refundSet = new Set([...huaZhuPlayers, ...noJiaoPlayers]);
+    for (const tx of this.gangTransactions) {
+      if (refundSet.has(tx.to)) {
+        // 收款者是花猪/未听者：回滚这笔杠（收款者退回，赔付者收回）
+        this.players[tx.to].score -= tx.amount;
+        this.players[tx.from].score += tx.amount;
+      }
+    }
+    for (const rIdx of refundSet) {
+      const p = this.players[rIdx];
+      if (p.gangGain > 0) {
+        this.logs.push(`${p.name} 流局退杠钱 -${p.gangGain}`);
+        p.gangGain = 0;
+      }
+    }
+
+    // 给流局玩家设置状态摘要，供结算弹窗显示
+    for (const hzIdx of huaZhuPlayers) {
+      this.players[hzIdx].fanDetail = { totalFan: 0, fans: [{ name: 'huazhu', label: '花猪', fan: 0 }] };
+    }
+    for (const noIdx of noJiaoPlayers) {
+      this.players[noIdx].fanDetail = { totalFan: 0, fans: [{ name: 'nojiao', label: '未听', fan: 0 }] };
+    }
+    for (const jIdx of jiaoPlayers) {
+      const maxFan = this._calcTingMaxFan(jIdx);
+      this.players[jIdx].fanDetail = { totalFan: maxFan, fans: [{ name: 'ting', label: `下叫(${maxFan}番)`, fan: maxFan }] };
     }
 
     this._log(`[engine] 流局结算: 花猪=${huaZhuPlayers.join(',')}, 听牌=${jiaoPlayers.join(',')}, 未听=${noJiaoPlayers.join(',')}`);
@@ -1185,11 +1273,11 @@ class SichuanMahjongEngine {
     const settlement = {
       flowEnd: isFlowEnd,
       nextDealer: this.dealerIndex,
-      players: this.players.map(p => ({
+      players: this.players.map((p, i) => ({
         name: p.name,
         score: p.score,
         isHu: p.isHu,
-        change: p.score,
+        change: p.score - (this.initialScores[i] || 0),  // 本局变化量 = 当前分数 - 初始分数
         melds: p.melds.map(m => ({ type: m.type, label: tileLabel(m.tiles[0]) })),
         fanDetail: p.fanDetail || null,
       })),
