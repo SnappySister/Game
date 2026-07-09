@@ -1307,6 +1307,11 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
     border-left: none; border-top: 2px solid #f39c12;
     padding: 6px;
   }
+  /* 移动端调整侧栏顺序：玩家 → 日志 → 操作 → 格子信息，确保日志可见 */
+  #monopoly-players  { order: 1; }
+  #monopoly-log      { order: 2; min-height: 70px; max-height: 90px; overflow-y: auto; font-size: 11px; }
+  #monopoly-actions  { order: 3; }
+  #monopoly-cell-info { order: 4; }
   /* 格子内容自适应缩小但保持可读 */
   .mono-cell { padding: 2px 3px; font-size: 10px; }
   .cell-icon { font-size: 16px; margin: 1px 0; }
@@ -1323,7 +1328,6 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   .mp-token { font-size: 15px; }
   .mp-name { font-size: 12px; }
   .mp-stats { font-size: 10px; gap: 8px; }
-  #monopoly-log { max-height: 80px; font-size: 11px; }
   .mono-cell-info { min-height: 50px; font-size: 11px; }
   .ci-name { font-size: 13px; }
   .mini-btn { padding: 3px 6px; font-size: 10px; }
