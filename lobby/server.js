@@ -136,7 +136,12 @@ function buildRoomState(room) {
     return { name: '?', id: uid };
   });
   const allReady = room.players.length > 0 && room.players.every(uid => room.ready.has(uid));
-  return { event: 'roomState', id: room.id, name: room.name, players: pNames, spectators: sNames, status: room.status, chat: room.chat.slice(-30), ready: [...room.ready], allReady, ownerId: room.ownerId };
+  return {
+    event: 'roomState', id: room.id, name: room.name, gameType: room.gameType, players: pNames, spectators: sNames,
+    status: room.status, chat: room.chat.slice(-30), ready: [...room.ready], allReady, ownerId: room.ownerId,
+    characterSelections: room.characterSelections || {},
+    characters: CardGameEngine.CHARACTERS
+  };
 }
 
 function addChat(scope, roomId, name, text) {
@@ -214,7 +219,8 @@ wss.on('connection', (ws) => {
         status: 'waiting', chat: [], gameInstance: null,
         maxPlayers: game.maxPlayers, ownerId: user.id,
         ready: new Set(),
-        nextRoundReady: new Set()
+        nextRoundReady: new Set(),
+        characterSelections: {}
       };
       rooms.set(rid, room);
       user.state = 'room';
@@ -349,12 +355,35 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    /* ---------- 选择角色（卡牌游戏） ---------- */
+    if (msg.type === 'selectCharacter') {
+      const room = rooms.get(user.roomId);
+      if (!room) { send(ws, { event: 'error', msg: '不在房间中' }); return; }
+      if (room.gameType !== 'card') { send(ws, { event: 'error', msg: '该游戏不支持角色' }); return; }
+      if (!room.players.includes(user.id)) { send(ws, { event: 'error', msg: '你不是玩家' }); return; }
+      if (room.status !== 'waiting') { send(ws, { event: 'error', msg: '游戏已开始' }); return; }
+      if (room.ready.has(user.id)) { send(ws, { event: 'error', msg: '已准备，取消准备后才能换角色' }); return; }
+      const ch = CardGameEngine.CHARACTERS.find(c => c.id === msg.characterId);
+      if (!ch) { send(ws, { event: 'error', msg: '角色不存在' }); return; }
+      if (!room.characterSelections) room.characterSelections = {};
+      room.characterSelections[user.id] = ch.id;
+      broadcastRoom(room.id, buildRoomState(room));
+      log.info(`用户 ${user.name} 选择角色 ${ch.name} (${room.id})`);
+      return;
+    }
+
     /* ---------- 准备/取消准备 ---------- */
     if (msg.type === 'toggleReady') {
       const room = rooms.get(user.roomId);
       if (!room) { send(ws, { event: 'error', msg: '不在房间中' }); return; }
       if (!room.players.includes(user.id)) { send(ws, { event: 'error', msg: '你不是玩家' }); return; }
       const wasReady = room.ready.has(user.id);
+      // 卡牌游戏：准备前必须已选角色
+      if (!wasReady && room.gameType === 'card') {
+        if (!room.characterSelections || !room.characterSelections[user.id]) {
+          send(ws, { event: 'error', msg: '请先选择角色' }); return;
+        }
+      }
       if (wasReady) room.ready.delete(user.id);
       else room.ready.add(user.id);
       broadcastRoom(room.id, buildRoomState(room));
@@ -375,7 +404,11 @@ wss.on('connection', (ws) => {
       room.status = 'playing';
       const players = room.players.map((uid, i) => {
         for (const [ws2, u] of users) {
-          if (u.id === uid) return { id: uid, name: u.name, ws: ws2, index: i };
+          if (u.id === uid) {
+            const p = { id: uid, name: u.name, ws: ws2, index: i };
+            if (room.gameType === 'card') p.character = (room.characterSelections && room.characterSelections[uid]) || null;
+            return p;
+          }
         }
       }).filter(Boolean);
 
@@ -557,7 +590,7 @@ wss.on('connection', (ws) => {
     }
 
     /* ---------- 游戏内消息 ---------- */
-    if (msg.type === 'play' || msg.type === 'discard' || msg.type === 'endTurn' || msg.type === 'bet' || msg.type === 'dingque' || msg.type === 'action' || msg.type === 'selfAction' || msg.type === 'exchange' || msg.type === 'roll' || msg.type === 'build' || msg.type === 'sellHouse' || msg.type === 'mortgage' || msg.type === 'redeem' || msg.type === 'useJailCard' || msg.type === 'payBail' || msg.type === 'tradeOffer' || msg.type === 'tradeResolve') {
+    if (msg.type === 'play' || msg.type === 'discard' || msg.type === 'endTurn' || msg.type === 'useSkill' || msg.type === 'bet' || msg.type === 'dingque' || msg.type === 'action' || msg.type === 'selfAction' || msg.type === 'exchange' || msg.type === 'roll' || msg.type === 'build' || msg.type === 'sellHouse' || msg.type === 'mortgage' || msg.type === 'redeem' || msg.type === 'useJailCard' || msg.type === 'payBail' || msg.type === 'tradeOffer' || msg.type === 'tradeResolve') {
       const room = rooms.get(user.roomId);
       if (!room) { log.warn(`P${user.gameIndex}(${user.name}) ${msg.type} 拒绝: 不在房间中`); return; }
       if (!room.gameInstance) { log.warn(`P${user.gameIndex}(${user.name}) ${msg.type} 拒绝: 无游戏实例 room=${room.id}`); return; }
@@ -608,6 +641,7 @@ function leaveRoomInternal(userId) {
   room.spectators = room.spectators.filter(id => id !== userId);
   room.ready.delete(userId);
   room.nextRoundReady.delete(userId);
+  if (room.characterSelections) delete room.characterSelections[userId];
 
   if (room.players.length === 0 && room.spectators.length === 0) {
     room.chat = [];

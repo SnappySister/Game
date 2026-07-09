@@ -102,6 +102,21 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   font-size: 14px;
 }
 .btn-enter-game:hover { background: #219150; }
+.game-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.btn-game-rule {
+  padding: 8px 14px;
+  background: #3498db;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.btn-game-rule:hover { background: #2980b9; }
 
 .lobby-sidebar {
   width: 220px;
@@ -470,6 +485,42 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
 .end-turn.discard-btn { background: #c0392b; }
 .end-turn.discard-btn:hover { background: #a93226; transform: scale(1.05); }
 
+/* ===== 技能按钮 ===== */
+.skill-btn {
+  min-width: 90px; padding: 10px 14px; border: none; border-radius: 8px;
+  background: #7f8c8d; color: rgba(255,255,255,.6); font-size: 13px; font-weight: bold;
+  cursor: not-allowed; transition: .2s; margin-left: 8px;
+}
+.skill-btn:enabled { background: #9b59b6; color: #fff; cursor: pointer; }
+.skill-btn:enabled:hover { background: #8e44ad; transform: scale(1.05); }
+.skill-btn.active { background: #e74c3c; color: #fff; cursor: pointer; }
+.skill-btn.active:hover { background: #c0392b; transform: scale(1.05); }
+
+/* ===== 角色选择区 ===== */
+.character-select {
+  flex: 2; background: #16213e; border: 1px solid #0f3460; border-radius: 10px; padding: 16px;
+}
+.character-select h3 { color: #f1c40f; margin-bottom: 12px; font-size: 16px; }
+.character-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+}
+.character-card {
+  background: #0f172a; border: 2px solid #2c3e50; border-radius: 8px; padding: 12px;
+  cursor: pointer; transition: .2s; text-align: center;
+}
+.character-card:hover:not(.locked) { border-color: #9b59b6; transform: translateY(-2px); }
+.character-card.selected { border-color: #9b59b6; background: #2c1a3e; }
+.character-card.locked { opacity: .55; cursor: not-allowed; }
+.char-emoji { font-size: 28px; }
+.char-name { font-size: 15px; font-weight: bold; color: #f1c40f; margin: 4px 0 2px; }
+.char-type { font-size: 11px; color: #888; margin-bottom: 6px; }
+.char-skill { font-size: 11px; color: #bbb; text-align: left; margin: 3px 0; line-height: 1.4; }
+.char-skill b { color: #9b59b6; }
+.room-char { font-size: 12px; color: #9b59b6; }
+@media (max-width: 600px) {
+  .character-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
 /* ===== 日志 ===== */
 .log-box { flex: 1; overflow-y: auto; background: #0f346022; border-radius: 8px; padding: 10px; font-size: 13px; color: #ccc; border: 1px solid #0f3460; }
 .log-box div { margin: 3px 0; }
@@ -513,6 +564,10 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,.3);
 }
 .card-cost.coin-cost { background: #f1c40f; }
+/* 被寒冰法师极地风暴加价时的费用显示 */
+.card-cost.surcharged-cost { background: #e74c3c; width: 30px; height: 30px; font-size: 12px; position: relative; }
+.cost-add { position: absolute; top: -6px; right: -8px; background: #e67e22; color: #fff; font-size: 9px; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.card.surcharged { box-shadow: 0 0 10px rgba(231,76,60,.5); }
 .card-value {
   background: var(--accent); color: #fff; font-weight: bold; font-size: 13px;
   width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
@@ -716,10 +771,37 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   #poker-pot-box { font-size: 12px; }
 
   /* 卡牌游戏 */
-  #view-game { padding: 6px; }
+  #view-game { padding: 6px; gap: 6px; }
+  #game-top-bar { gap: 6px; flex-wrap: wrap; }
+  #game-status { font-size: 12px; flex: 1 1 100%; order: -1; text-align: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #btn-game-rule, #btn-game-chat, #btn-leave-game { padding: 5px 8px; font-size: 11px; }
+
+  .player-area { flex-wrap: wrap; gap: 8px; padding: 8px 10px; }
+  .player-area .avatar { width: 36px; height: 36px; font-size: 24px; line-height: 36px; }
+  .player-area .info { flex: 1 1 calc(100% - 48px); min-width: 0; }
+  .player-area .name { font-size: 14px; margin-bottom: 2px; }
+  .char-line { font-size: 11px !important; }
+  .stats { font-size: 11px; word-break: break-word; }
+  .hand-count { min-width: auto; font-size: 11px; }
+  .crystal { width: 8px; height: 8px; }
+
+  /* 结束回合/技能按钮在手机端并排撑满，便于触控 */
+  #my-area { position: relative; flex-wrap: wrap; }
+  #my-area .avatar { flex: 0 0 auto; }
+  #my-area .info { flex: 1 1 calc(100% - 48px); min-width: 0; }
+  #my-area .end-turn, #my-area .skill-btn { flex: 1 1 calc(50% - 6px); min-width: 0; margin-left: 0; padding: 10px 8px; font-size: 12px; }
+  #my-area .skill-btn { margin-right: 6px; }
+
+  /* 对手区：hand-count 不单独换行，并入右侧 */
+  #enemy-area { flex-wrap: nowrap; }
+  #enemy-area .info { flex: 1 1 0; min-width: 0; }
+  #enemy-area .hand-count { align-self: center; }
+
   .card { width: 80px; height: 110px; }
   .card-name { font-size: 14px; }
   .card-desc { font-size: 9px; }
+  .hand { gap: 8px; padding: 6px 0 12px; min-height: 120px; }
+  .log-box { font-size: 12px; padding: 6px; max-height: 90px; }
 }
 
 /* ===== 小屏手机额外优化 ===== */
@@ -736,6 +818,23 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   .room-header { padding: 8px 10px; }
   .room-body { padding: 8px; }
   .log-box { font-size: 11px; padding: 6px; }
+
+  /* 卡牌游戏小屏 */
+  .card { width: 70px; height: 98px; }
+  .card-name { font-size: 12px; }
+  .card-desc { font-size: 8px; }
+  .card-type { font-size: 9px; }
+  .hand { gap: 6px; min-height: 100px; }
+  .player-area { padding: 6px 8px; gap: 6px; }
+  .player-area .avatar { width: 32px; height: 32px; font-size: 20px; line-height: 32px; }
+  .player-area .info { flex: 1 1 calc(100% - 42px); }
+  .stats { font-size: 10px; }
+  .hp-bar { height: 8px; margin-bottom: 2px; }
+  #my-area .end-turn, #my-area .skill-btn { padding: 11px 6px; font-size: 12px; }
+  .crystal { width: 7px; height: 7px; }
+  #game-top-bar { gap: 4px; }
+  #btn-game-rule, #btn-game-chat, #btn-leave-game { padding: 5px 7px; font-size: 10px; }
+  .log-box { max-height: 76px; }
 }
 
 /* ==================== 四川麻将 ==================== */

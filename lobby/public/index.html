@@ -58,6 +58,10 @@
     <button id="btn-start-game" style="display:none">开始游戏</button>
   </div>
   <div class="room-body">
+    <div id="character-select" class="character-select" style="display:none">
+      <h3>选择角色</h3>
+      <div id="character-grid" class="character-grid"></div>
+    </div>
     <div class="room-players">
       <h3>玩家</h3>
       <div id="room-player-list"></div>
@@ -82,6 +86,7 @@
     <div class="avatar">😈</div>
     <div class="info">
       <div class="name">?</div>
+      <div class="char-line" id="enemy-char-line" style="display:none;font-size:12px;color:#e67e22;margin-bottom:2px;"></div>
       <div class="hp-bar"><div class="hp-inner" style="width:100%"></div></div>
       <div class="stats">
         HP <span class="hp-val">100/100</span> |
@@ -104,6 +109,7 @@
     <div class="avatar">🧙</div>
     <div class="info">
       <div class="name">我</div>
+      <div class="char-line" id="my-char-line" style="display:none;font-size:12px;color:#9b59b6;margin-bottom:2px;"></div>
       <div class="hp-bar"><div class="hp-inner" style="width:100%"></div></div>
       <div class="stats">
         HP <span class="hp-val">100/100</span> |
@@ -117,6 +123,7 @@
       </div>
       <div class="mana-bar"><span class="mana-crystals"></span></div>
     </div>
+    <button id="skill-btn" class="skill-btn" style="display:none">技能</button>
     <button id="end-turn-btn" class="end-turn" disabled>结束回合</button>
   </div>
 
@@ -170,6 +177,17 @@
       <p><b>冻结</b>：该回合<b>无法使用任何卡牌</b>，除非打出<b>净化</b>立即解除。冰冻持续一回合后自动融化。</p>
       <p><b>死亡倒计时</b>：每回合结束倒计时-1，归零时造成15×层数的普通伤害。不会自动消失，可用<b>净化</b>解除。</p>
       <p><b>净化</b>可一键清除以上<b>所有</b>负面效果。</p>
+      <br>
+      <p><b>角色系统（进入房间后、准备前选择）：</b></p>
+      <p>每场对战双方各选1个角色，角色提供 1 个<b>被动技能</b>（常驻生效）和 1 个<b>主动技能</b>（消耗水晶，每回合限用1次）。准备后无法更换角色，取消准备才可重选。</p>
+      <p><b>主动技能机制：</b>主动技能消耗一定<b>水晶</b>，在自己的回合可释放，<b>每回合最多1次</b>。水晶不足或本回合已用过则无法释放。下回合开始自动恢复可用。</p>
+      <p><b style="color:#9b59b6">😈 狂战士（输出）</b>　被动【嗜血】：HP≤30%时，所有普通伤害+3。　主动【血怒】3💧：扣自己5血，本回合普通伤害翻倍。</p>
+      <p><b style="color:#9b59b6">🛡 圣骑士（防御）</b>　被动【圣愈】：每回合开始（灼烧时除外）回2血。　主动【圣盾】2💧：获得10点护盾。</p>
+      <p><b style="color:#9b59b6">💀 术士（资源）</b>　被动【血契】：打出真实伤害牌（献祭/自爆）后抽1张。　主动【诅咒】4💧：弃1张手牌，对手叠3层中毒（受护罩抵挡则无效，但牌仍弃）。</p>
+      <p><b style="color:#9b59b6">🎲 赌徒（随机）</b>　被动【双骰】：混沌卡牌效果触发两次。　主动【换牌】2💧：弃全部手牌，重抽等量张。</p>
+      <p><b style="color:#9b59b6">❄ 寒冰法师（控制）</b>　被动【霜寒】：打出冰封牌时额外造成5点普通伤害。　主动【极地风暴】3💧：对手本回合所有卡牌费用+2（软控，对手仍可出牌，仅拖慢节奏）。</p>
+      <p><b style="color:#9b59b6">🧙 大法师（资源）</b>　被动【博学】：每回合抽牌数+1（共4张）。　主动【奥术涌动】3💧：立即抽3张牌。</p>
+      <p><b>注：</b>狂战士的增伤/翻倍仅作用于普通伤害，不影响真实伤害与负面效果扣血。主动技能不受冰冻限制（非卡牌）。术士释放【诅咒】需先点击技能再选一张手牌弃掉。寒冰法师【极地风暴】的费用惩罚仅持续对手一个回合。</p>
     </div>
     <button id="close-rule">知道了</button>
   </div>
@@ -602,6 +620,7 @@
 let ws = null, myName = '', currentView = 'login', currentRoomId = null, currentGameType = '';
 let myHand = [], gameState = null, myGameIndex = 0, isSpectator = false;
 let discardMode = false, discardTarget = 0, selectedToDiscard = [];
+let skillSelectMode = false;
 let pokerState = null, myPokerHand = [], isRoomOwner = false;
 let hasRequestedNextRound = false;
 let pokerHistory = []; // 每局结算数据
@@ -698,6 +717,13 @@ connect();
 
 function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
 
+/* 打开对应游戏的规则弹窗（大厅/房间列表页复用游戏内规则） */
+function openGameRule(gameType) {
+  const map = { card: '#game-rule-modal', poker: '#poker-rule-modal', mahjong: '#mahjong-rule-modal', monopoly: '#monopoly-rule-modal' };
+  const sel = map[gameType];
+  if (sel) $(sel).style.display = 'flex';
+}
+
 /* ==================== 消息处理 ==================== */
 function handleMessage(d) {
   if (d.event === 'named') {
@@ -707,13 +733,18 @@ function handleMessage(d) {
   if (d.event === 'lobbyState') {
     $('#lobby-online-count').textContent = d.online.length;
     $('#lobby-online-list').innerHTML = d.online.map(u => `<div>${u.name}</div>`).join('');
-    $('#games-list').innerHTML = d.games.map(g => `
+    $('#games-list').innerHTML = d.games.map(g => {
+      const hasRule = ['card','poker','mahjong','monopoly'].includes(g.id);
+      return `
       <div class="game-card ${g.available ? '' : 'disabled'}" data-id="${g.id}">
         <div class="game-name">${g.name}</div>
         <div class="game-desc">${g.desc}</div>
-        ${g.available ? '<button class="btn-enter-game">进入</button>' : ''}
-      </div>
-    `).join('');
+        <div class="game-card-actions">
+          ${hasRule ? '<button class="btn-game-rule">📜 规则</button>' : ''}
+          ${g.available ? '<button class="btn-enter-game">进入</button>' : ''}
+        </div>
+      </div>`;
+    }).join('');
     document.querySelectorAll('.game-card .btn-enter-game').forEach(b => {
       b.onclick = (e) => {
         const card = e.target.closest('.game-card');
@@ -721,6 +752,13 @@ function handleMessage(d) {
         currentGameType = card.dataset.id;
         send({ type: 'enterGameList', gameType: currentGameType });
         showView('#view-roomList');
+      };
+    });
+    document.querySelectorAll('.game-card .btn-game-rule').forEach(b => {
+      b.onclick = (e) => {
+        const card = e.target.closest('.game-card');
+        if (!card) return;
+        openGameRule(card.dataset.id);
       };
     });
   }
@@ -750,21 +788,51 @@ function handleMessage(d) {
   }
   if (d.event === 'roomState') {
     currentRoomId = d.id;
+    if (d.gameType) currentGameType = d.gameType;
     $('#room-title').textContent = d.name;
-    $('#room-player-list').innerHTML = d.players.map(p => {
-      const readyMark = d.ready.includes(p.id) ? ' ✅' : '';
-      return `<div class="room-player ${p.name===myName?'me':''}">${p.name} ${p.id===d.players[0]?.id?'(房主)':''}${readyMark}</div>`;
-    }).join('');
-    $('#room-spectator-list').innerHTML = d.spectators.map(s => `<div>${s.name}</div>`).join('') || '<div class="empty">暂无</div>';
-    // 开始按钮显示
     const mePlayer = d.players.find(p => p.name === myName);
     const meSpectator = d.spectators.find(s => s.name === myName);
     const isOwner = d.players[0] && d.players[0].name === myName;
     isRoomOwner = isOwner;
     const isPlayer = !!mePlayer;
     const roomWaiting = d.status === 'waiting';
+    const chMap = {};
+    if (d.characters) d.characters.forEach(c => chMap[c.id] = c);
+    const selMap = d.characterSelections || {};
+    $('#room-player-list').innerHTML = d.players.map(p => {
+      const readyMark = d.ready.includes(p.id) ? ' ✅' : '';
+      const chId = selMap[p.id];
+      const chTag = chId && chMap[chId] ? ` <span class="room-char">${chMap[chId].emoji} ${chMap[chId].name}</span>` : '';
+      return `<div class="room-player ${p.name===myName?'me':''}">${p.name} ${p.id===d.players[0]?.id?'(房主)':''}${chTag}${readyMark}</div>`;
+    }).join('');
+    $('#room-spectator-list').innerHTML = d.spectators.map(s => `<div>${s.name}</div>`).join('') || '<div class="empty">暂无</div>';
 
-    // 身份标签
+    // 角色选择区（仅卡牌游戏且 waiting 时显示）
+    const charBox = $('#character-select');
+    const charGrid = $('#character-grid');
+    const isCardGame = currentGameType === 'card';
+    if (isCardGame && roomWaiting && d.characters && mePlayer) {
+      charBox.style.display = 'block';
+      const meReady = d.ready.includes(mePlayer.id);
+      const mySel = selMap[mePlayer.id];
+      charGrid.innerHTML = d.characters.map(c => `
+        <div class="character-card ${mySel===c.id?'selected':''} ${meReady?'locked':''}" data-id="${c.id}">
+          <div class="char-emoji">${c.emoji}</div>
+          <div class="char-name">${c.name}</div>
+          <div class="char-type">${c.type}</div>
+          <div class="char-skill"><b>被动</b> ${c.passive.name}：${c.passive.desc}</div>
+          <div class="char-skill"><b>主动</b> ${c.active.name}：${c.active.desc}（${c.active.maxUses}次）</div>
+        </div>`).join('');
+      charGrid.querySelectorAll('.character-card').forEach(card => {
+        card.onclick = () => {
+          if (meReady) { alert('已准备，取消准备后才能换角色'); return; }
+          send({ type: 'selectCharacter', characterId: card.dataset.id });
+        };
+      });
+    } else {
+      charBox.style.display = 'none';
+    }
+    // 开始按钮显示
     const roleBadge = $('#room-role-badge');
     if (roleBadge) {
       roleBadge.style.display = 'inline-block';
@@ -837,6 +905,7 @@ function handleMessage(d) {
       hasRequestedNextRound = false;
     } else {
       showView('#view-game');
+      skillSelectMode = false;
     }
     isSpectator = false;
   }
@@ -1106,7 +1175,28 @@ function renderGameState(s) {
   log.innerHTML = s.logs.map(l => '<div>' + l + '</div>').join('');
   log.scrollTop = log.scrollHeight;
 
+  // 技能按钮（仅卡牌游戏、非观战；消耗水晶，每回合1次）
+  const skillBtn = $('#skill-btn');
+  if (skillBtn) {
+    if (!isSpectator && me && me.skillName && me.skillCost > 0) {
+      skillBtn.style.display = 'inline-block';
+      const canUse = me.isCurrent && !me.skillUsedThisTurn && me.mana >= me.skillCost && !skillSelectMode;
+      skillBtn.textContent = `${me.skillName}（${me.skillCost}💧）`;
+      skillBtn.title = me.skillDesc + (me.skillUsedThisTurn ? '（本回合已用）' : (me.mana < me.skillCost ? '（水晶不足）' : ''));
+      skillBtn.disabled = !canUse;
+      skillBtn.classList.toggle('active', skillSelectMode);
+    } else {
+      skillBtn.style.display = 'none';
+    }
+  }
+
   const btn = $('#end-turn-btn');
+  if (skillSelectMode) {
+    btn.disabled = false;
+    btn.textContent = '取消选牌';
+    btn.classList.add('active');
+    return;
+  }
   if (discardMode) {
     btn.disabled = selectedToDiscard.length !== discardTarget;
     btn.textContent = `确认弃牌 (${selectedToDiscard.length}/${discardTarget})`;
@@ -1119,7 +1209,8 @@ function renderGameState(s) {
   if (me && me.isCurrent) {
     btn.disabled = false;
     const frozenMark = me.frozen ? ' ❄冻' : '';
-    btn.textContent = '结束回合 (剩余 ' + me.mana + '/' + me.maxMana + ' | 上限: ' + me.maxMana + ')' + frozenMark;
+    const surchargeMark = (me.cardCostPenalty > 0) ? ` ⚡+${me.cardCostPenalty}费` : '';
+    btn.textContent = '结束回合 (剩余 ' + me.mana + '/' + me.maxMana + ' | 上限: ' + me.maxMana + ')' + frozenMark + surchargeMark;
     btn.classList.add('active');
   } else {
     btn.disabled = true; btn.textContent = '对手回合'; btn.classList.remove('active');
@@ -1136,6 +1227,12 @@ function updateArea(id, p) {
   el.querySelector('.poison-val').textContent = p.poison;
   el.querySelector('.burn-val').textContent = p.burn;
   el.querySelector('.hp-inner').style.width = (p.hp / p.maxHp * 100) + '%';
+  // 角色显示
+  const charLine = el.querySelector('.char-line');
+  if (charLine) {
+    if (p.characterName) { charLine.style.display = 'block'; charLine.textContent = `${p.characterEmoji} ${p.characterName}`; }
+    else charLine.style.display = 'none';
+  }
   const immuneTag = el.querySelector('.immune-tag');
   if (immuneTag) immuneTag.style.display = p.immune ? 'inline' : 'none';
   const frozenTag = el.querySelector('.frozen-tag');
@@ -1167,16 +1264,21 @@ function renderHand() {
   const myMana = me ? me.mana : 0;
   const isMyTurn = me && me.isCurrent;
   const isFrozen = me && me.frozen;
+  const penalty = me ? (me.cardCostPenalty || 0) : 0;
 
   myHand.forEach(c => {
-    const playable = isMyTurn && !discardMode && c.cost <= myMana && (!isFrozen || c.type === 'cleanse');
+    const effCost = c.type === 'coin' ? 0 : c.cost + penalty;
+    const playable = isMyTurn && !discardMode && !skillSelectMode && effCost <= myMana && (!isFrozen || c.type === 'cleanse');
     const selected = discardMode && selectedToDiscard.includes(c.uuid);
     const card = document.createElement('div');
-    card.className = 'card' + (playable ? '' : ' disabled') + (selected ? ' selected' : '');
+    card.className = 'card' + (playable || skillSelectMode ? '' : ' disabled') + (selected ? ' selected' : '') + (penalty > 0 && c.type !== 'coin' ? ' surcharged' : '');
     card.style.setProperty('--accent', c.color);
+    const costHtml = penalty > 0 && c.type !== 'coin'
+      ? `<span class="card-cost surcharged-cost">${c.cost}<span class="cost-add">+${penalty}</span></span>`
+      : `<span class="card-cost">${c.cost}</span>`;
     const topHtml = c.type === 'coin'
       ? `<div class="card-top"><span class="card-cost coin-cost">0</span><span class="card-value coin-value">+${c.value}</span></div>`
-      : `<div class="card-top"><span class="card-cost">${c.cost}</span><span class="card-value">${c.value}</span></div>`;
+      : `<div class="card-top">${costHtml}<span class="card-value">${c.value}</span></div>`;
     card.innerHTML = `<div class="card-inner">${topHtml}<div class="card-name">${c.name}</div><div class="card-type">${typeLabel(c.type)}</div><div class="card-desc">${c.desc}</div></div>`;
     card.onclick = () => {
       if (discardMode) {
@@ -1188,6 +1290,11 @@ function renderHand() {
         const btn = $('#end-turn-btn');
         btn.disabled = selectedToDiscard.length !== discardTarget;
         btn.textContent = `确认弃牌 (${selectedToDiscard.length}/${discardTarget})`;
+        return;
+      }
+      if (skillSelectMode) {
+        send({ type: 'useSkill', uuid: c.uuid });
+        exitSkillSelectMode();
         return;
       }
       if (!playable) return;
@@ -1214,6 +1321,20 @@ function exitDiscardMode() {
   renderHand();
 }
 
+function enterSkillSelectMode() {
+  skillSelectMode = true;
+  $('#game-status').textContent = '选择1张手牌弃掉（术士·诅咒）';
+  renderHand();
+  if (gameState) renderGameState(gameState);
+}
+
+function exitSkillSelectMode() {
+  skillSelectMode = false;
+  $('#game-status').textContent = '';
+  if (gameState) renderGameState(gameState);
+  renderHand();
+}
+
 function typeLabel(t) {
   const m = {
     damage:'⚔ 伤害', heal:'❤ 治疗', shield:'🛡 护盾', vampiric:'🧛 吸血',
@@ -1225,7 +1346,23 @@ function typeLabel(t) {
   return m[t] || t;
 }
 
+$('#skill-btn').onclick = () => {
+  const me = gameState && gameState.players[myGameIndex];
+  if (!me || !me.isCurrent) return;
+  if (me.skillUsedThisTurn) return;
+  if (me.mana < me.skillCost) { alert('水晶不足'); return; }
+  // 术士需选牌
+  if (me.character === 'warlock') {
+    if (skillSelectMode) { exitSkillSelectMode(); return; }
+    if (myHand.length === 0) { alert('没有手牌可弃'); return; }
+    enterSkillSelectMode();
+    return;
+  }
+  send({ type: 'useSkill' });
+};
+
 $('#end-turn-btn').onclick = () => {
+  if (skillSelectMode) { exitSkillSelectMode(); return; }
   if (discardMode) {
     if (selectedToDiscard.length === discardTarget) {
       send({ type: 'discard', uuids: selectedToDiscard });
