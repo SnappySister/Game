@@ -2279,7 +2279,12 @@ function sendMonoNextRound() {
 /* ---- 退出对局 ---- */
 function leaveMonopoly() {
   monopolyGameActive = false;
-  send({ type: 'backToRoom' });
+  monopolyTradeOffer = null;
+  $('#monopoly-trade-offer-modal').style.display = 'none';
+  $('#monopoly-trade-modal').style.display = 'none';
+  // 与卡牌/扑克/麻将一致：中途退出 = 离开房间回大厅（服务端触发 playerDisconnected 托管）
+  send({ type: 'leaveRoom' });
+  showView('#view-lobby');
 }
 </script>
 </body>

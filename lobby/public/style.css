@@ -1285,8 +1285,56 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
 .mono-settle table { margin: 8px 0; }
 
 @media (max-width: 768px) {
+  /* 顶栏紧凑 */
+  #monopoly-top-bar { padding: 6px 8px; font-size: 12px; gap: 4px; }
+  #monopoly-status { font-size: 11px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #monopoly-top-bar button { padding: 5px 8px; font-size: 12px; margin-left: 3px; }
+  /* 主区上下排：棋盘优先，侧栏在下方可滚动 */
   #monopoly-main { flex-direction: column; }
-  #monopoly-sidebar { width: 100%; max-height: 45vh; border-left: none; border-top: 2px solid #f39c12; }
-  #monopoly-board { grid-template-columns: repeat(4, 1fr); }
-  .mono-cell { min-height: 60px; }
+  #monopoly-board {
+    /* 保持环形 7x7 结构不破坏；正方形边长取宽度与 56vh 的较小值，确保完整显示不滚动 */
+    grid-template-columns: repeat(7, 1fr);
+    grid-template-rows: repeat(7, 1fr);
+    aspect-ratio: 1 / 1;
+    width: min(100%, 56vh);
+    height: auto;
+    margin: 0 auto;
+    flex: 0 0 auto;
+    gap: 2px; padding: 4px;
+  }
+  #monopoly-sidebar {
+    width: 100%; max-height: 38vh; flex: 1;
+    border-left: none; border-top: 2px solid #f39c12;
+    padding: 6px;
+  }
+  /* 格子内容自适应缩小但保持可读 */
+  .mono-cell { padding: 2px 3px; font-size: 10px; }
+  .cell-icon { font-size: 16px; margin: 1px 0; }
+  .mono-cell.corner .cell-icon { font-size: 20px; }
+  .cell-name { font-size: 9px; margin: 0; }
+  .mono-cell.corner .cell-name { font-size: 10px; }
+  .cell-price { font-size: 8px; }
+  .cell-token { font-size: 13px; margin-left: -2px; }
+  .mono-cell.corner .cell-token { font-size: 16px; }
+  .cell-owner { font-size: 8px; }
+  .cell-colorbar { height: 5px; margin-bottom: 2px; }
+  /* 侧栏内玩家卡片紧凑 */
+  .mono-player { padding: 4px 6px; }
+  .mp-token { font-size: 15px; }
+  .mp-name { font-size: 12px; }
+  .mp-stats { font-size: 10px; gap: 8px; }
+  #monopoly-log { max-height: 80px; font-size: 11px; }
+  .mono-cell-info { min-height: 50px; font-size: 11px; }
+  .ci-name { font-size: 13px; }
+  .mini-btn { padding: 3px 6px; font-size: 10px; }
+  .mono-actions .poker-btn { padding: 8px 10px; font-size: 13px; }
+}
+
+@media (max-width: 400px) {
+  /* 极窄屏：进一步缩小图标与字号 */
+  .cell-icon { font-size: 13px; }
+  .mono-cell.corner .cell-icon { font-size: 16px; }
+  .cell-name { font-size: 8px; }
+  .cell-price, .cell-owner { font-size: 7px; }
+  .cell-token { font-size: 11px; }
 }
