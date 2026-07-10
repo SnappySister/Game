@@ -433,11 +433,11 @@ class CardGameEngine {
       p.hp = Math.min(p.maxHp, p.hp + 2);
       if (p.hp > before) this.logs.push(`${p.name} 触发【圣愈】回2血`);
     }
-    // 装备触发：宝藏(水晶+1) → 影刃(对对手造成4伤) → 守护盾(+5护盾)
+    // 装备触发：宝藏(水晶+1，可临时突破上限) → 影刃(对对手造成4伤) → 守护盾(+5护盾)
     if (p.equipManaTurn > 0) {
-      p.mana = Math.min(p.maxMana, p.mana + 1);
+      p.mana += 1; // 宝藏水晶不受maxMana上限限制，本回合内可超额
       p.equipManaTurn--;
-      this.logs.push(`${p.name} 的宝藏+1水晶${p.equipManaTurn === 0 ? '（耗尽）' : ''}`);
+      this.logs.push(`${p.name} 的宝藏+1水晶(当前${p.mana})${p.equipManaTurn === 0 ? '（耗尽）' : ''}`);
     }
     if (p.equipBladeTurn > 0 && p.hp > 0) {
       const target = this.players[1 - idx];
