@@ -20,7 +20,18 @@ const CARDS = [
   { id: 'freeze',    name: '冰封',     type: 'freeze',    value: 0,  cost: 4, color: '#00bcd4', desc: '冻结对手1回合' },
   { id: 'doom',      name: '死亡宣告', type: 'doom',      value: 3,  cost: 5, color: '#607d8b', desc: '3回合后扣20血' },
   { id: 'ward',      name: '护罩',     type: 'ward',      value: 0,  cost: 3, color: '#f1c40f', desc: '下回合免疫负面效果' },
-  { id: 'cleanse',   name: '净化',     type: 'cleanse',   value: 3,  cost: 4, color: '#ecf0f1', desc: '清负面+回3血' }
+  { id: 'cleanse',   name: '净化',     type: 'cleanse',   value: 3,  cost: 4, color: '#ecf0f1', desc: '清除自身所有负面效果并恢复3点生命' },
+  { id: 'delay_dmg', name: '火灵', type: 'summon_fire', value: 5, cost: 4, color: '#e67e22', desc: '召唤火灵，在场3回合每回合对对手造成5/7/9点递增普通伤害' },
+  { id: 'blade',     name: '影刃',     type: 'equip',     value: 4,  cost: 3, color: '#95a5a6', desc: '装备3回合，每回合开始对对手造成4点普通伤害' },
+  { id: 'guard_shield', name: '守护者之盾', type: 'equip_shield', value: 5, cost: 3, color: '#2980b9', desc: '装备3回合，每回合开始获得5点护盾' },
+  { id: 'treasure',  name: '宝藏',     type: 'equip_mana', value: 1,  cost: 2, color: '#f1c40f', desc: '装备2回合，每回合开始水晶+1' },
+  { id: 'laststand', name: '背水一战', type: 'cond_damage', value: 15, cost: 2, color: '#c0392b', desc: '自己HP≤40时造成15点普通伤害，否则5点' },
+  { id: 'execute',  name: '斩杀',     type: 'cond_kill',  value: 0,  cost: 4, color: '#c0392b', desc: '对手HP≤15直接斩杀，否则造成8点普通伤害' },
+  { id: 'overload',  name: '过载',     type: 'cond_draw',  value: 3,  cost: 1, color: '#1abc9c', desc: '手牌≤2张时抽3张，否则抽1张' },
+  { id: 'holylight', name: '圣光',     type: 'cleanse_lite', value: 0, cost: 2, color: '#ecf0f1', desc: '清除对面所有随从（含壁垒守卫）' },
+  { id: 'purge',     name: '净化火焰', type: 'cleanse_burn', value: 8, cost: 5, color: '#e74c3c', desc: '清自身负面+回8血+抽1张，并清除对面所有随从' },
+  { id: 'spider',    name: '蜘蛛女皇', type: 'summon_spider', value: 2, cost: 4, color: '#27ae60', desc: '召唤蜘蛛女皇，在场3回合每回合给对手叠2层中毒' },
+  { id: 'guardian',  name: '壁垒守卫', type: 'summon_guard',  value: 0,  cost: 3, color: '#3498db', desc: '召唤壁垒守卫，在场3回合期间受到的普通伤害减半' }
 ];
 
 const MAX_MANA = 10;
@@ -69,7 +80,12 @@ class CardGameEngine {
       character: p.character || null,
       skillUsedThisTurn: false,
       berserkerDoubleDamage: false,
-      cardCostPenalty: 0
+      cardCostPenalty: 0,
+      delayDamages: [],
+      equipBladeTurn: 0,
+      equipShieldTurn: 0,
+      equipManaTurn: 0,
+      summons: []
     }));
     this.turn = -1;
     this.logs = [];
@@ -153,9 +169,22 @@ class CardGameEngine {
     const chaosCleanseCleared = (Array.isArray(extra.chaosEffect) ? extra.chaosEffect.includes('cleanse') : extra.chaosEffect === 'cleanse') && extra.cleansed;
     if (chaosCleanseCleared) log += '（清除所有负面）';
     if (card.type === 'cleanse') log += extra.cleansed ? '（清除所有负面）' : '（无负面可清）';
+    if (card.type === 'cleanse_lite') log += extra.cleansed ? '（清除对面所有随从）' : '（对面无随从）';
+    if (card.type === 'cleanse_burn') log += extra.healBlocked ? '（清负面，灼烧中回血无效，抽1张）' : '（清负面，回8血，抽1张）';
+    if (card.type === 'cleanse_burn' && extra.purged) log += '，焚毁对面随从';
     if (card.type === 'block') log += '（下回合免疫所有伤害）';
     if (card.type === 'ward') log += '（下回合免疫负面效果）';
     if (card.type === 'coin') log += '（水晶+1）';
+    if (card.type === 'delay_damage') log += extra.negBlocked ? '（被护罩抵挡）' : '（3回合后爆发20伤）';
+    if (card.type === 'summon_fire') log += '（召唤火灵，每回合递增伤害）';
+    if (card.type === 'summon_spider') log += '（召唤蜘蛛女皇，每回合叠毒）';
+    if (card.type === 'summon_guard') log += '（召唤壁垒守卫，3回合普通伤害减半）';
+    if (card.type === 'equip') log += '（装备影刃3回合）';
+    if (card.type === 'equip_shield') log += '（装备守护者之盾3回合）';
+    if (card.type === 'equip_mana') log += '（装备宝藏2回合）';
+    if (card.type === 'cond_damage') log += `（自己HP${user.hp}，造成${user.hp <= 40 ? 15 : 5}伤）`;
+    if (card.type === 'cond_kill') log += extra.executed ? '（斩杀！）' : `（对手HP${target.hp}，造成8伤）`;
+    if (card.type === 'cond_draw') log += `（手牌${this._realHandCount(user)}张后）`;
     if (extra.healBlocked) log += '（灼烧中，回血无效）';
     if (extra.negBlocked) log += '（被护罩抵挡）';
     this.logs.push(log);
@@ -225,10 +254,16 @@ class CardGameEngine {
     return v;
   }
 
-  // 普通伤害修饰点：集中处理狂战士被动(+3)和主动(翻倍)。仅卡牌普通伤害调用。
+  // 普通伤害修饰点：集中处理狂战士被动(+3)、主动(翻倍)、壁垒守卫减伤。仅卡牌普通伤害调用。
   _dealDamage(user, target, baseV) {
     if (user.character === 'berserker' && user.hp <= user.maxHp * 0.3) baseV += 3;
     if (user.berserkerDoubleDamage) baseV *= 2;
+    // 壁垒守卫：在场期间普通伤害减半（向下取整）
+    if (target.summons && target.summons.some(s => s.kind === 'guardian') && baseV > 0) {
+      const reduced = Math.floor(baseV / 2);
+      this.logs.push(`${target.name} 的壁垒守卫减伤 ${baseV - reduced} 点`);
+      baseV = reduced;
+    }
     const dmg = this._effectiveDamage(target, baseV);
     target.hp = Math.max(0, target.hp - dmg);
     return dmg;
@@ -281,7 +316,59 @@ class CardGameEngine {
         if (b) extra = { healBlocked: true }; else user.hp = Math.min(user.maxHp, user.hp + 3);
         extra = { ...extra, cleansed: n };
       },
-      coin:     () => { user.mana += 1; }
+      /* 圣光：清除对面所有随从（含壁垒守卫），不清负面不回血 */
+      cleanse_lite: () => {
+        const cleared = target.summons && target.summons.length > 0;
+        if (cleared) {
+          const names = target.summons.map(s => ({firesprite:'火灵',spider:'蜘蛛女皇',guardian:'壁垒守卫'})[s.kind] || '随从');
+          this.logs.push(`${target.name} 的${names.join('、')}被圣光驱散`);
+          target.summons = [];
+        }
+        extra = { cleansed: cleared };
+      },
+      /* 净化火焰：清自身负面+回8血+抽1，并清除对面所有随从（含壁垒） */
+      cleanse_burn: () => {
+        const n = user.poison > 0 || user.burn > 0 || user.frozen || user.doom > 0 || user.doomStacks > 0;
+        const b = user.burn > 0;
+        user.poison = 0; user.burn = 0; user.frozen = false; user.doom = 0; user.doomStacks = 0; user.burnTurn = 0;
+        if (!b) user.hp = Math.min(user.maxHp, user.hp + 8); else extra = { healBlocked: true };
+        this._drawCards(user, 1);
+        const cleared = target.summons && target.summons.length > 0;
+        if (cleared) {
+          const names = target.summons.map(s => ({firesprite:'火灵',spider:'蜘蛛女皇',guardian:'壁垒守卫'})[s.kind] || '随从');
+          this.logs.push(`${target.name} 的${names.join('、')}被净化火焰焚毁`);
+          target.summons = [];
+        }
+        extra = { ...extra, cleansed: n, purged: cleared };
+      },
+      coin:     () => { user.mana += 1; },
+      /* ===== 随从(召唤物) ===== */
+      summon_fire: () => {
+        user.summons.push({ kind: 'firesprite', turns: 3, dmg: v });
+      },
+      summon_spider: () => {
+        user.summons.push({ kind: 'spider', turns: 3 });
+      },
+      summon_guard: () => {
+        user.summons.push({ kind: 'guardian', turns: 3 }); // 在场3回合，期间普通伤害减半
+      },
+      /* ===== 限时装备 ===== */
+      equip:        () => { user.equipBladeTurn = 3; },
+      equip_shield: () => { user.equipShieldTurn = 3; },
+      equip_mana:   () => { user.equipManaTurn = 2; },
+      /* ===== 条件触发 ===== */
+      cond_damage: () => {
+        if (user.hp <= 40) this._dealDamage(user, target, 15);
+        else this._dealDamage(user, target, 5);
+      },
+      cond_kill: () => {
+        if (target.hp <= 15 && target.hp > 0 && !target.immune) { target.hp = 0; extra = { executed: true }; }
+        else this._dealDamage(user, target, 8);
+      },
+      cond_draw: () => {
+        const n = this._realHandCount(user) <= 2 ? 3 : 1;
+        this._drawCards(user, n);
+      }
     };
     (RESOLVERS[card.type] || (() => {}))();
     if (target.hp <= 0) target.shield = 0;
@@ -345,6 +432,46 @@ class CardGameEngine {
       const before = p.hp;
       p.hp = Math.min(p.maxHp, p.hp + 2);
       if (p.hp > before) this.logs.push(`${p.name} 触发【圣愈】回2血`);
+    }
+    // 装备触发：宝藏(水晶+1) → 影刃(对对手造成4伤) → 守护盾(+5护盾)
+    if (p.equipManaTurn > 0) {
+      p.mana = Math.min(p.maxMana, p.mana + 1);
+      p.equipManaTurn--;
+      this.logs.push(`${p.name} 的宝藏+1水晶${p.equipManaTurn === 0 ? '（耗尽）' : ''}`);
+    }
+    if (p.equipBladeTurn > 0 && p.hp > 0) {
+      const target = this.players[1 - idx];
+      this._dealDamage(p, target, 4);
+      p.equipBladeTurn--;
+      this.logs.push(`${p.name} 的影刃造成4点伤害${p.equipBladeTurn === 0 ? '（损坏）' : ''}`);
+    }
+    if (p.equipShieldTurn > 0) {
+      p.shield += 5;
+      p.equipShieldTurn--;
+      this.logs.push(`${p.name} 的守护者之盾+5护盾${p.equipShieldTurn === 0 ? '（消失）' : ''}`);
+    }
+    // 随从触发（火灵递增伤害、蜘蛛叠毒）；壁垒为被动减伤(在_dealDamage处理)，此处只做倒计时
+    if (p.summons && p.summons.length > 0 && p.hp > 0) {
+      const target = this.players[1 - idx];
+      p.summons = p.summons.filter(s => {
+        if (s.kind === 'firesprite') {
+          this._dealDamage(p, target, s.dmg);
+          this.logs.push(`${p.name} 的火灵造成${s.dmg}点伤害`);
+          s.dmg += 2;
+        } else if (s.kind === 'spider') {
+          if (target.negImmune) this.logs.push(`${p.name} 的蜘蛛女皇被护罩抵挡`);
+          else { target.poison += 2; this.logs.push(`${p.name} 的蜘蛛女皇给对手叠2层中毒`); }
+        }
+        // guardian 壁垒无主动效果，仅倒计时
+        s.turns--;
+        if (s.turns <= 0) {
+          if (s.kind === 'firesprite') this.logs.push(`${p.name} 的火灵消散`);
+          else if (s.kind === 'spider') this.logs.push(`${p.name} 的蜘蛛女皇离去`);
+          else if (s.kind === 'guardian') this.logs.push(`${p.name} 的壁垒守卫消散`);
+          return false;
+        }
+        return true;
+      });
     }
   }
 
@@ -447,6 +574,15 @@ class CardGameEngine {
           immune: !!p.immune, negImmune: !!p.negImmune, handSize: this._realHandCount(p),
           isCurrent: i === this.turn, disconnected: !!p.disconnected,
           cardCostPenalty: p.cardCostPenalty || 0,
+          delayDamages: (p.delayDamages || []).map(d => ({ amount: d.amount, turns: d.turns })),
+          equipBladeTurn: p.equipBladeTurn || 0,
+          equipShieldTurn: p.equipShieldTurn || 0,
+          equipManaTurn: p.equipManaTurn || 0,
+          summons: (p.summons || []).map(s => ({
+            kind: s.kind,
+            turns: s.turns === undefined ? -1 : s.turns,
+            dmg: s.dmg === undefined ? 0 : s.dmg
+          })),
           character: p.character,
           characterEmoji: ch ? ch.emoji : '',
           characterName: ch ? ch.name : '',

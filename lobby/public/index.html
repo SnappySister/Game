@@ -97,6 +97,8 @@
         <span class="frozen-tag" style="display:none"> ❄冻</span>
         <span class="immune-tag" style="display:none"> 🛡免疫</span>
         <span class="negimmune-tag" style="display:none"> 🛡护</span>
+        <span class="equip-tag" style="display:none"></span>
+        <span class="delay-tag" style="display:none"></span>
       </div>
       <div class="mana-bar"><span class="mana-crystals"></span></div>
     </div>
@@ -120,6 +122,8 @@
         <span class="frozen-tag" style="display:none"> ❄冻</span>
         <span class="immune-tag" style="display:none"> 🛡免疫</span>
         <span class="negimmune-tag" style="display:none"> 🛡护</span>
+        <span class="equip-tag" style="display:none"></span>
+        <span class="delay-tag" style="display:none"></span>
       </div>
       <div class="mana-bar"><span class="mana-crystals"></span></div>
     </div>
@@ -162,7 +166,9 @@
       <p><b>💀 诅咒</b>：对手直接叠加 <b>5层</b> 中毒（不造成伤害）。</p>
       <p><b>❄ 冰封</b>：冻结对手一整回合。冻结期间只能打出<b>净化</b>，其他卡牌无法使用。冰冻持续一回合后自动融化。</p>
       <p><b>⏳ 死亡宣告</b>：令对手进入 <b>3回合</b> 倒计时，倒计时归零时造成 <b>15×层数</b> 的普通伤害。每层单独计算，最多叠到5层。可用<b>净化</b>解除。</p>
-      <p><b>✨ 净化</b>：清除自身<b>所有</b>负面效果（中毒+灼烧+冻结+死亡倒计时），并<b>恢复3点生命</b>。</p>
+      <p><b>✨ 净化</b>（4费）：清除自身<b>所有</b>负面效果（中毒+灼烧+冻结+死亡倒计时），并<b>恢复3点生命</b>。<b>不清除随从</b>。</p>
+      <p><b style="color:#ecf0f1">✨ 圣光</b>（2费）：<b>清除对面所有随从</b>（含火灵/蜘蛛/壁垒守卫）。不解负面、不回血，是反制对手随从的低费利器。</p>
+      <p><b style="color:#e74c3c">🔥 净化火焰</b>（5费）：清除自身负面、<b>回8血</b>、额外<b>抽1张牌</b>，并<b>清除对面所有随从</b>（含壁垒）。高费全能解，解负面+反制随从+续航。</p>
       <p><b>👋 顺手牵羊</b>：随机偷对手一张手牌（偷到的也可能是硬币）。</p>
       <p><b>💀 献祭</b>：自己强制扣 <b>8</b> 点真实伤害（无法避免），对手受到 <b>15</b> 点真实伤害。真实伤害无视护盾，但对手有<b>格挡</b>时可免疫。</p>
       <p><b>💥 自爆卡车</b>：双方各受 <b>25</b> 点真实伤害（无视护盾）。有<b>格挡</b>时可免疫。</p>
@@ -170,6 +176,18 @@
       <p><b>🃏 奥术智慧</b>：抽2张牌。</p>
       <p><b>⚔ 疾风斩</b>：造成8点普通伤害并抽1张牌。</p>
       <p><b>💰 水晶硬币</b>：0费，使用后本回合水晶+1。不计入手牌上限，弃牌时不需要弃它。</p>
+      <br>
+      <p><b>特殊机制卡牌：</b></p>
+      <p><b>随从机制：</b>随从是召唤在场上的实体，每回合开始时自动行动，持续数回合后消失。<b>所有随从都可被净化清除</b>。状态区显示随从图标+剩余回合。</p>
+      <p><b style="color:#e67e22">🔥 火灵</b>（4费，随从）：在场3回合，每回合开始对对手造成5/7/9点递增普通伤害。越养越强，可被净化清除。区别于死亡倒计时的一次性爆发。</p>
+      <p><b style="color:#27ae60">🕷️ 蜘蛛女皇</b>（4费，随从）：在场3回合，每回合开始给对手叠2层中毒。持续消耗，受护罩抵挡时不生效但仍消耗回合。</p>
+      <p><b style="color:#3498db">🛡️ 壁垒守卫</b>（3费，随从）：在场3回合，期间你受到的<b>普通伤害减半</b>（向下取整）。与格挡的区别：格挡=一回合100%免疫，壁垒=三回合50%持续减伤。仅减普通伤害，不影响真实伤害与负面效果。</p>
+      <p><b style="color:#95a5a6">🗡️ 影刃</b>（3费，限时装备）：装备3回合，每回合开始时对对手造成4点普通伤害。状态区显示 🗡️剩余回合。</p>
+      <p><b style="color:#2980b9">🛡️ 守护者之盾</b>（3费，限时装备）：装备3回合，每回合开始时获得5点护盾。状态区显示 🛡️剩余回合。</p>
+      <p><b style="color:#f1c40f">💰 宝藏</b>（2费，限时装备）：装备2回合，每回合开始时水晶+1（不超上限）。状态区显示 💰剩余回合。</p>
+      <p><b style="color:#c0392b">⚡ 背水一战</b>（2费，条件触发）：自己HP≤40时造成15点普通伤害，否则5点。残血爆发，与狂战士被动可叠加。</p>
+      <p><b style="color:#c0392b">🎯 斩杀</b>（4费，条件触发）：对手HP≤15时直接斩杀（扣至0），否则造成8点普通伤害。被格挡时无法斩杀。</p>
+      <p><b style="color:#1abc9c">🌀 过载</b>（1费，条件触发）：手牌≤2张时抽3张，否则抽1张。手牌少时收益更高。</p>
       <br>
       <p><b>负面效果机制（回合结束时结算，伤害均为普通伤害）：</b></p>
       <p><b>中毒</b>：每回合结束扣除当前层数HP（先扣护盾）。不会自动消失，层数可叠加。</p>
@@ -1245,6 +1263,31 @@ function updateArea(id, p) {
   if (doomStacks) doomStacks.textContent = p.doomStacks > 1 ? '×' + p.doomStacks : '';
   const negImmuneTag = el.querySelector('.negimmune-tag');
   if (negImmuneTag) negImmuneTag.style.display = p.negImmune ? 'inline' : 'none';
+  // 装备显示
+  const equipTag = el.querySelector('.equip-tag');
+  if (equipTag) {
+    const parts = [];
+    if (p.equipBladeTurn > 0) parts.push(`🗡️${p.equipBladeTurn}`);
+    if (p.equipShieldTurn > 0) parts.push(`🛡️${p.equipShieldTurn}`);
+    if (p.equipManaTurn > 0) parts.push(`💰${p.equipManaTurn}`);
+    if (parts.length) { equipTag.style.display = 'inline'; equipTag.textContent = ' ' + parts.join(' '); }
+    else equipTag.style.display = 'none';
+  }
+  // 随从显示（火灵/蜘蛛女皇/壁垒守卫）
+  const delayTag = el.querySelector('.delay-tag');
+  if (delayTag) {
+    if (p.summons && p.summons.length) {
+      const labels = { firesprite: '🔥火灵', spider: '🕷️蜘蛛', guardian: '🛡️壁垒' };
+      const parts = p.summons.map(s => {
+        const lbl = labels[s.kind] || s.kind;
+        if (s.kind === 'firesprite') return `${lbl}${s.dmg}(${s.turns})`;
+        if (s.turns >= 0) return `${lbl}(${s.turns})`;
+        return lbl;
+      });
+      delayTag.style.display = 'inline';
+      delayTag.textContent = ' ' + parts.join(' ');
+    } else delayTag.style.display = 'none';
+  }
   el.classList.toggle('current-turn', p.isCurrent);
   renderMana(el.querySelector('.mana-crystals'), p.mana, p.maxMana);
   if (id === 'enemy-area') el.querySelector('.hand-count').textContent = '手牌: ' + p.handSize;
@@ -1341,7 +1384,11 @@ function typeLabel(t) {
     poison:'☠ 毒雾', chaos:'🎲 混沌', draw:'🃏 抽牌', draw_dmg:'⚔ 伤害+抽牌',
     sacrifice:'💀 献祭', suicide:'💥 自爆', block:'🛡 格挡',
     steal:'👋 偷牌', cleanse:'✨ 净化', coin:'💰 硬币',
-    combust:'🔥 灼烧', curse:'💀 诅咒', freeze:'❄ 冰封', doom:'⏳ 死亡宣告', ward:'🛡 护罩'
+    combust:'🔥 灼烧', curse:'💀 诅咒', freeze:'❄ 冰封', doom:'⏳ 死亡宣告', ward:'🛡 护罩',
+    delay_damage:'🔥 烈焰风暴', equip:'🗡️ 装备', equip_shield:'🛡️ 装备', equip_mana:'💰 装备',
+    cond_damage:'⚡ 背水', cond_kill:'🎯 斩杀', cond_draw:'🌀 过载',
+    summon_fire:'🔥 随从', summon_spider:'🕷️ 随从', summon_guard:'🛡️ 随从',
+    cleanse_lite:'✨ 净化', cleanse_burn:'🔥 净化'
   };
   return m[t] || t;
 }
