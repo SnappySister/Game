@@ -52,8 +52,8 @@ const CHARACTERS = [
     passive: { name: '圣愈', desc: '每回合开始(灼烧时除外)回2血' },
     active:  { name: '圣盾', desc: '消耗2水晶，获得10点护盾', cost: 2 } },
   { id: 'warlock',   emoji: '💀', name: '术士', type: '资源',
-    passive: { name: '血契', desc: '打出真实伤害牌(献祭/自爆)后抽1张' },
-    active:  { name: '诅咒', desc: '消耗4水晶，弃1张手牌，对手叠3层中毒', cost: 4 } },
+    passive: { name: '血契', desc: '打出负面效果牌(中毒/灼烧/诅咒/冰封/死亡宣告)后抽1张' },
+    active:  { name: '诅咒', desc: '消耗3水晶，弃1张手牌，对手叠4层中毒并锁定负面(下回合无法净化)', cost: 3 } },
   { id: 'gambler',   emoji: '🎲', name: '赌徒', type: '随机',
     passive: { name: '双骰', desc: '混沌卡牌效果触发两次' },
     active:  { name: '换牌', desc: '消耗2水晶，弃全部手牌，重抽等量张', cost: 2 } },
@@ -81,6 +81,7 @@ class CardGameEngine {
       skillUsedThisTurn: false,
       berserkerDoubleDamage: false,
       cardCostPenalty: 0,
+      negativeLocked: 0,
       delayDamages: [],
       equipBladeTurn: 0,
       equipShieldTurn: 0,
@@ -168,9 +169,10 @@ class CardGameEngine {
     if (card.type === 'doom') log += '（死亡倒计时3回合）';
     const chaosCleanseCleared = (Array.isArray(extra.chaosEffect) ? extra.chaosEffect.includes('cleanse') : extra.chaosEffect === 'cleanse') && extra.cleansed;
     if (chaosCleanseCleared) log += '（清除所有负面）';
-    if (card.type === 'cleanse') log += extra.cleansed ? '（清除所有负面）' : '（无负面可清）';
+    if (card.type === 'cleanse') log += extra.locked ? '（负面被锁定，净化无效！）' : (extra.cleansed ? '（清除所有负面）' : '（无负面可清）');
     if (card.type === 'cleanse_lite') log += extra.cleansed ? '（清除对面所有随从）' : '（对面无随从）';
     if (card.type === 'cleanse_burn') log += extra.healBlocked ? '（清负面，灼烧中回血无效，抽1张）' : '（清负面，回8血，抽1张）';
+    if (card.type === 'cleanse_burn' && extra.locked) log += '（负面被锁定，清负面无效！）';
     if (card.type === 'cleanse_burn' && extra.purged) log += '，焚毁对面随从';
     if (card.type === 'block') log += '（下回合免疫所有伤害）';
     if (card.type === 'ward') log += '（下回合免疫负面效果）';
@@ -311,6 +313,7 @@ class CardGameEngine {
       ward:     () => { user.negImmune = true; },
       steal:    () => { if (target.hand.length > 0) { const s = target.hand.splice(Math.floor(Math.random() * target.hand.length), 1)[0]; user.hand.push(s); extra = { stolenName: s.name }; } else extra = { stolenFail: true }; },
       cleanse:  () => {
+        if (user.negativeLocked) { extra = { locked: true }; return; } // 负面被锁定，净化无效
         const n = user.poison > 0 || user.burn > 0 || user.frozen || user.doom > 0 || user.doomStacks > 0;
         const b = user.burn > 0; user.poison = 0; user.burn = 0; user.frozen = false; user.doom = 0; user.doomStacks = 0; user.burnTurn = 0;
         if (b) extra = { healBlocked: true }; else user.hp = Math.min(user.maxHp, user.hp + 3);
@@ -328,9 +331,10 @@ class CardGameEngine {
       },
       /* 净化火焰：清自身负面+回8血+抽1，并清除对面所有随从（含壁垒） */
       cleanse_burn: () => {
-        const n = user.poison > 0 || user.burn > 0 || user.frozen || user.doom > 0 || user.doomStacks > 0;
+        const locked = !!user.negativeLocked;
+        const n = !locked && (user.poison > 0 || user.burn > 0 || user.frozen || user.doom > 0 || user.doomStacks > 0);
         const b = user.burn > 0;
-        user.poison = 0; user.burn = 0; user.frozen = false; user.doom = 0; user.doomStacks = 0; user.burnTurn = 0;
+        if (!locked) { user.poison = 0; user.burn = 0; user.frozen = false; user.doom = 0; user.doomStacks = 0; user.burnTurn = 0; }
         if (!b) user.hp = Math.min(user.maxHp, user.hp + 8); else extra = { healBlocked: true };
         this._drawCards(user, 1);
         const cleared = target.summons && target.summons.length > 0;
@@ -339,7 +343,7 @@ class CardGameEngine {
           this.logs.push(`${target.name} 的${names.join('、')}被净化火焰焚毁`);
           target.summons = [];
         }
-        extra = { ...extra, cleansed: n, purged: cleared };
+        extra = { ...extra, cleansed: n, purged: cleared, locked };
       },
       coin:     () => { user.mana += 1; },
       /* ===== 随从(召唤物) ===== */
@@ -378,7 +382,8 @@ class CardGameEngine {
 
   // 出牌后被动钩子（在 _resolveCard 之后调用）
   _onCardResolved(user, target, card) {
-    if (user.character === 'warlock' && (card.type === 'sacrifice' || card.type === 'suicide')) {
+    const NEGATIVE_TYPES = ['poison', 'combust', 'curse', 'freeze', 'doom'];
+    if (user.character === 'warlock' && NEGATIVE_TYPES.includes(card.type)) {
       this._drawCards(user, 1);
       this.logs.push(`${user.name} 触发【血契】抽1张牌`);
     }
@@ -504,8 +509,13 @@ class CardGameEngine {
         const ci = user.hand.findIndex(c => c.uuid === msg.uuid);
         if (ci === -1) { user.mana += ch.active.cost; return; } // 牌不存在，退还水晶
         user.hand.splice(ci, 1);
-        if (target.negImmune) this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶,被护罩抵挡)`);
-        else { target.poison += 3; this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶)对手叠3层中毒`); }
+        if (target.negImmune) {
+          this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶,被护罩抵挡)`);
+        } else {
+          target.poison += 4;
+          target.negativeLocked = 1; // 锁定负面：下回合无法净化
+          this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶)对手叠4层中毒并锁定负面`);
+        }
         break;
       }
       case 'gambler': {
@@ -534,6 +544,7 @@ class CardGameEngine {
     this._applyStatusEffects(pp);
     if (pp.frozen) { pp.frozen = false; this.logs.push(`${pp.name} 从冰冻中恢复`); }
     if (pp.cardCostPenalty) { pp.cardCostPenalty = 0; } // 软控仅持续一个回合
+    if (pp.negativeLocked) { pp.negativeLocked = 0; } // 负面锁定仅持续一个回合
     this.turn = (this.turn + 1) % 2;
     this._beginTurn(this.turn);
     this._broadcastAll();
@@ -574,6 +585,7 @@ class CardGameEngine {
           immune: !!p.immune, negImmune: !!p.negImmune, handSize: this._realHandCount(p),
           isCurrent: i === this.turn, disconnected: !!p.disconnected,
           cardCostPenalty: p.cardCostPenalty || 0,
+          negativeLocked: !!p.negativeLocked,
           delayDamages: (p.delayDamages || []).map(d => ({ amount: d.amount, turns: d.turns })),
           equipBladeTurn: p.equipBladeTurn || 0,
           equipShieldTurn: p.equipShieldTurn || 0,
