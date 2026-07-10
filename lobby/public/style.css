@@ -474,9 +474,12 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
 
 /* ===== 水晶 ===== */
 .mana-bar { margin-top: 4px; display: flex; gap: 3px; flex-wrap: wrap; align-items: center; }
+.mana-num { font-size: 13px; font-weight: bold; color: #3498db; margin-right: 4px; }
+.mana-max { color: #888; font-weight: normal; font-size: 12px; }
 .crystal { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
 .crystal.filled { background: #3498db; box-shadow: 0 0 4px #3498db; }
 .crystal.empty  { background: #555; opacity: .4; }
+.crystal.overflow { background: #f1c40f; box-shadow: 0 0 6px #f1c40f; }
 
 /* ===== 结束回合按钮 ===== */
 .end-turn {

@@ -194,7 +194,7 @@
       <p><b>负面效果机制（回合结束时结算，伤害均为普通伤害）：</b></p>
       <p><b>中毒</b>：每回合结束扣除当前层数HP（先扣护盾）。不会自动消失，层数可叠加。</p>
       <p><b>灼烧</b>：每回合结束扣除当前层数HP（先扣护盾），且<b>灼烧期间无法回血</b>（净化除外）。灼烧持续<b>3回合</b>后自动熄灭。</p>
-      <p><b>冻结</b>：该回合<b>无法使用任何卡牌</b>，除非打出<b>净化</b>立即解除。冰冻持续一回合后自动融化。</p>
+      <p><b>冻结</b>：该回合<b>无法使用任何卡牌</b>，除非打出<b>净化</b>或<b>净化火焰</b>立即解除（圣光不解冰封，仍不可出）。冰冻持续一回合后自动融化。</p>
       <p><b>死亡倒计时</b>：每回合结束倒计时-1，归零时造成15×层数的普通伤害。不会自动消失，可用<b>净化</b>解除。</p>
       <p><b>净化</b>可一键清除以上<b>所有</b>负面效果。</p>
       <br>
@@ -1299,8 +1299,11 @@ function updateArea(id, p) {
 }
 
 function renderMana(el, current, max) {
-  let html = '';
-  for (let i = 0; i < max; i++) html += '<span class="crystal ' + (i < current ? 'filled' : 'empty') + '"></span>';
+  const shown = Math.min(current, max);
+  const overflow = Math.max(0, current - max); // 宝藏等超额水晶
+  let html = `<span class="mana-num">${current}<span class="mana-max">/${max}</span></span>`;
+  for (let i = 0; i < max; i++) html += '<span class="crystal ' + (i < shown ? 'filled' : 'empty') + '"></span>';
+  for (let i = 0; i < overflow; i++) html += '<span class="crystal overflow"></span>';
   el.innerHTML = html;
 }
 
@@ -1316,7 +1319,7 @@ function renderHand() {
 
   myHand.forEach(c => {
     const effCost = c.type === 'coin' ? 0 : c.cost + penalty;
-    const playable = isMyTurn && !discardMode && !skillSelectMode && effCost <= myMana && (!isFrozen || c.type === 'cleanse');
+    const playable = isMyTurn && !discardMode && !skillSelectMode && effCost <= myMana && (!isFrozen || c.type === 'cleanse' || c.type === 'cleanse_burn');
     const selected = discardMode && selectedToDiscard.includes(c.uuid);
     const card = document.createElement('div');
     card.className = 'card' + (playable || skillSelectMode ? '' : ' disabled') + (selected ? ' selected' : '') + (penalty > 0 && c.type !== 'coin' ? ' surcharged' : '');

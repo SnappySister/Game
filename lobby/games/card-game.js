@@ -140,7 +140,7 @@ class CardGameEngine {
     const card = user.hand[idx];
     const effectiveCost = card.cost + (user.cardCostPenalty || 0);
     if (user.mana < effectiveCost) return;
-    if (user.frozen && card.type !== 'cleanse') {
+    if (user.frozen && card.type !== 'cleanse' && card.type !== 'cleanse_burn') {
       this._send(myIndex, { event: 'frozen' });
       return;
     }
