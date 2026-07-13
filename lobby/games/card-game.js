@@ -33,6 +33,10 @@ const CARDS = [
   { id: 'laststand', name: '背水一战', type: 'cond_damage', value: 15, cost: 2, color: '#c0392b', rarity: 'uncommon', hpThreshold: 40, lowDmg: 5, desc: '自己HP≤40时造成15点普通伤害，否则5点' },
   { id: 'execute',  name: '斩杀',     type: 'cond_kill',  value: 0,  cost: 4, color: '#c0392b', rarity: 'uncommon', hpThreshold: 15, normalDmg: 8, desc: '对手HP≤15直接斩杀，否则造成8点普通伤害' },
   { id: 'overload',  name: '过载',     type: 'cond_draw',  value: 3,  cost: 1, color: '#1abc9c', rarity: 'common', desc: '手牌≤2张时抽3张，否则抽1张' },
+  { id: 'energyburst', name: '能量爆发', type: 'rand_mana', value: 3, cost: 3, color: '#f39c12', rarity: 'uncommon', desc: '造成(当前剩余水晶×3)点普通伤害，剩余水晶越多越强' },
+  { id: 'pact',      name: '命运契约', type: 'rand_pact',  value: 8,  cost: 4, color: '#9b59b6', rarity: 'uncommon', stacks: 3, desc: '回8血并随机给对手一个负面(中毒3层/灼烧3层/冻结)(赌徒双发=回16+两个负面)' },
+  { id: 'mirror',    name: '幻象术',   type: 'rand_copy',  value: 0,  cost: 4, color: '#1abc9c', rarity: 'rare', desc: '随机复制对手一张手牌到自己手里(赌徒复制两张)' },
+  { id: 'ritual',    name: '召唤仪式', type: 'rand_summon', value: 0, cost: 5, color: '#8e44ad', rarity: 'rare', desc: '随机召唤一个随从(火灵/蜘蛛/壁垒)(赌徒召唤两个)' },
   { id: 'holylight', name: '圣光',     type: 'cleanse_lite', value: 0, cost: 2, color: '#ecf0f1', rarity: 'rare', desc: '清除对面所有随从（含壁垒守卫）' },
   { id: 'purge',     name: '净化火焰', type: 'cleanse_burn', value: 8, cost: 5, color: '#e74c3c', rarity: 'rare', drawCount: 1, desc: '清自身负面+回8血+抽1张，并清除对面所有随从' },
   { id: 'spider',    name: '蜘蛛女皇', type: 'summon_spider', value: 2, cost: 4, color: '#27ae60', rarity: 'rare', summonStacks: 2, summonTurns: 3, desc: '召唤蜘蛛女皇，在场3回合每回合给对手叠2层中毒' },
@@ -56,7 +60,7 @@ const CHARACTERS = [
     passive: { name: '血契', desc: '打出负面效果牌(中毒/灼烧/诅咒/冰封/死亡宣告)后抽1张' },
     active:  { name: '诅咒', desc: '消耗3水晶，弃1张手牌，对手叠5层中毒', cost: 3 } },
   { id: 'gambler',   emoji: '🎲', name: '赌徒', type: '随机',
-    passive: { name: '双骰', desc: '混沌卡牌效果触发两次' },
+    passive: { name: '双骰', desc: '所有随机卡牌(混沌/能量爆发/命运契约/幻象术/召唤仪式)触发两次' },
     active:  { name: '换牌', desc: '消耗2水晶，弃全部手牌，重抽等量张', cost: 2 } },
   { id: 'cryomage', emoji: '❄', name: '寒冰法师', type: '控制',
     passive: { name: '霜寒', desc: '打出冰封牌时额外造成5点普通伤害' },
@@ -189,6 +193,10 @@ class CardGameEngine {
     if (card.type === 'cond_damage') log += `（自己HP${user.hp}，造成${user.hp <= 40 ? 15 : 5}伤）`;
     if (card.type === 'cond_kill') log += extra.executed ? '（斩杀！）' : `（对手HP${target.hp}，造成8伤）`;
     if (card.type === 'cond_draw') log += `（手牌${this._realHandCount(user)}张后）`;
+    if (card.type === 'rand_mana') log += ` → 造成${extra.manaDmg}点伤害(剩余水晶${user.mana}×3)`;
+    if (card.type === 'rand_pact') log += ` → 回${extra.pactHeal}血，对手${extra.pactNegs.map(n => ({poison:'中毒',burn:'灼烧',freeze:'冰冻'})[n]).join('+')}${extra.negBlocked ? '（被护罩抵挡）' : ''}${extra.healBlocked ? '（灼烧中回血无效）' : ''}`;
+    if (card.type === 'rand_copy') log += extra.copied.length ? ` → 复制了【${extra.copied.join('、')}】` : '（对手无手牌）';
+    if (card.type === 'rand_summon') log += ` → 召唤了${extra.summoned.join('、')}`;
     if (extra.healBlocked) log += '（灼烧中，回血无效）';
     if (extra.negBlocked) log += '（被护罩抵挡）';
     this.logs.push(log);
@@ -392,6 +400,71 @@ class CardGameEngine {
       cond_draw: () => {
         const n = this._realHandCount(user) <= 2 ? 3 : 1;
         this._drawCards(user, n);
+      },
+      /* ===== 随机卡牌(赌徒双发) ===== */
+      // 能量爆发：与水晶联动，伤害=剩余水晶×倍率
+      rand_mana: () => {
+        const dmg = user.mana * (card.value || 3);
+        this._dealDamage(user, target, dmg);
+        extra = { ...extra, manaDmg: dmg };
+      },
+      // 命运契约：回血+随机给对手负面（赌徒双发=回16+两个负面）
+      rand_pact: () => {
+        const times = user.character === 'gambler' ? 2 : 1;
+        const v2 = card.value || 8;
+        let heal = 0;
+        const negs = [];
+        for (let t = 0; t < times; t++) {
+          if (user.burn > 0) extra = { ...extra, healBlocked: true };
+          else { user.hp = Math.min(user.maxHp, user.hp + v2); heal += v2; }
+          const pool = ['poison', 'burn', 'freeze'];
+          const pick = pool[Math.floor(Math.random() * pool.length)];
+          if (target.negImmune) { extra = { ...extra, negBlocked: true }; }
+          else {
+            if (pick === 'poison') target.poison += card.stacks || 3;
+            if (pick === 'burn') { target.burn += card.stacks || 3; target.burnTurn = CONFIG.STATUS_DURATION; }
+            if (pick === 'freeze') target.frozen = true;
+          }
+          negs.push(pick);
+        }
+        extra = { ...extra, pactHeal: heal, pactNegs: negs };
+      },
+      // 幻象术：随机复制对手一张手牌（赌徒复制两张）
+      rand_copy: () => {
+        const times = user.character === 'gambler' ? 2 : 1;
+        const stolen = [];
+        for (let t = 0; t < times; t++) {
+          if (target.hand.length > 0) {
+            const idx = Math.floor(Math.random() * target.hand.length);
+            const copy = { ...target.hand[idx], uuid: Math.random().toString(36).slice(2, 9) };
+            user.hand.push(copy);
+            stolen.push(copy.name);
+          }
+        }
+        extra = { ...extra, copied: stolen };
+      },
+      // 召唤仪式：随机召唤一个随从（赌徒召唤两个）
+      rand_summon: () => {
+        const times = user.character === 'gambler' ? 2 : 1;
+        const summoned = [];
+        const fireCard = CARDS.find(c => c.type === 'summon_fire');
+        const spiderCard = CARDS.find(c => c.type === 'summon_spider');
+        const guardCard = CARDS.find(c => c.type === 'summon_guard');
+        const pool = [fireCard, spiderCard, guardCard];
+        for (let t = 0; t < times; t++) {
+          const pick = pool[Math.floor(Math.random() * pool.length)];
+          if (pick.type === 'summon_fire') {
+            user.summons.push({ kind: 'firesprite', turns: pick.summonTurns || 3, dmg: pick.summonDmg || 5, incr: pick.summonIncr || 2 });
+            summoned.push('火灵');
+          } else if (pick.type === 'summon_spider') {
+            user.summons.push({ kind: 'spider', turns: pick.summonTurns || 3, stacks: pick.summonStacks || 2 });
+            summoned.push('蜘蛛女皇');
+          } else {
+            user.summons.push({ kind: 'guardian', turns: pick.summonTurns || 3 });
+            summoned.push('壁垒守卫');
+          }
+        }
+        extra = { ...extra, summoned };
       }
     };
     (RESOLVERS[card.type] || (() => {}))();
