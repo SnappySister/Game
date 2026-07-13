@@ -12,8 +12,12 @@ module.exports = {
   RARITY_WEIGHTS: { common: 60, uncommon: 30, rare: 10 }, // 分层抽牌稀有度权重
 
   /* 英雄/卡牌效果参数 */
-  BERSERKER_HP_RATIO: 0.3,    // 狂战士被动触发血量比（HP≤30%时增伤）
+  BERSERKER_HP_RATIO: 0.4,    // 狂战士被动触发血量比（HP≤40%时增伤）
+  BERSERKER_BONUS: 3,         // 狂战士被动增伤量
+  BERSERKER_SELF_DMG: 3,      // 狂战士主动血怒自扣血量
+  CRYO_VULN: 3,               // 寒冰法师冻结易伤量（对手冻结时伤害+3）
   GUARDIAN_REDUCE: 0.5,       // 壁垒守卫减伤比例
+  PALADIN_SHIELD_BONUS: 3,    // 圣骑士被动叠盾量（已有护盾时额外+盾）
   STATUS_DURATION: 3,         // 灼烧持续回合数
   DOOM_DAMAGE_PER_STACK: 20    // 死亡倒计时每层爆发伤害
 };

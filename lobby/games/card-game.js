@@ -29,7 +29,7 @@ const CARDS = [
   { id: 'delay_dmg', name: '火灵', type: 'summon_fire', value: 5, cost: 4, color: '#e67e22', rarity: 'rare', summonDmg: 5, summonIncr: 2, summonTurns: 3, desc: '召唤火灵，在场3回合每回合对对手造成5/7/9点递增普通伤害' },
   { id: 'blade',     name: '影刃',     type: 'equip',     value: 4,  cost: 3, color: '#95a5a6', rarity: 'uncommon', equipDmg: 4, equipTurns: 3, desc: '装备3回合，每回合开始对对手造成4点普通伤害' },
   { id: 'guard_shield', name: '守护者之盾', type: 'equip_shield', value: 5, cost: 3, color: '#2980b9', rarity: 'uncommon', equipShield: 5, equipTurns: 3, desc: '装备3回合，每回合开始获得5点护盾' },
-  { id: 'treasure',  name: '宝藏',     type: 'equip_mana', value: 1,  cost: 2, color: '#f1c40f', rarity: 'uncommon', equipMana: 1, equipTurns: 2, desc: '装备2回合，每回合开始水晶+1' },
+  { id: 'treasure',  name: '宝藏',     type: 'equip_mana', value: 1,  cost: 2, color: '#f1c40f', rarity: 'uncommon', equipMana: 2, equipTurns: 2, desc: '装备2回合，每回合开始水晶+2' },
   { id: 'laststand', name: '背水一战', type: 'cond_damage', value: 15, cost: 2, color: '#c0392b', rarity: 'uncommon', hpThreshold: 40, lowDmg: 5, desc: '自己HP≤40时造成15点普通伤害，否则5点' },
   { id: 'execute',  name: '斩杀',     type: 'cond_kill',  value: 0,  cost: 4, color: '#c0392b', rarity: 'uncommon', hpThreshold: 15, normalDmg: 8, desc: '对手HP≤15直接斩杀，否则造成8点普通伤害' },
   { id: 'overload',  name: '过载',     type: 'cond_draw',  value: 3,  cost: 1, color: '#1abc9c', rarity: 'common', desc: '手牌≤2张时抽3张，否则抽1张' },
@@ -51,23 +51,23 @@ const COIN_TEMPLATE = {
 /* 角色定义：被动(常驻) + 主动(消耗水晶，每回合1次) */
 const CHARACTERS = [
   { id: 'berserker', emoji: '😈', name: '狂战士', type: '输出',
-    passive: { name: '嗜血', desc: 'HP≤30%时，所有普通伤害+3' },
-    active:  { name: '血怒', desc: '消耗3水晶，扣自己5血，本回合普通伤害翻倍', cost: 3 } },
+    passive: { name: '嗜血', desc: 'HP≤40%时，所有普通伤害+3' },
+    active:  { name: '血怒', desc: '消耗3水晶，扣自己3血，本回合普通伤害翻倍', cost: 3 } },
   { id: 'paladin',   emoji: '🛡', name: '圣骑士', type: '防御',
-    passive: { name: '圣愈', desc: '每回合开始(灼烧时除外)回2血' },
+    passive: { name: '圣愈', desc: '每回合开始(灼烧时除外)回2血，且已有护盾时额外+3护盾' },
     active:  { name: '圣盾', desc: '消耗2水晶，获得10点护盾', cost: 2 } },
   { id: 'warlock',   emoji: '💀', name: '术士', type: '资源',
     passive: { name: '血契', desc: '打出负面效果牌(中毒/灼烧/诅咒/冰封/死亡宣告)后抽1张' },
-    active:  { name: '诅咒', desc: '消耗3水晶，弃1张手牌，对手叠5层中毒', cost: 3 } },
+    active:  { name: '诅咒', desc: '消耗3水晶，弃1张手牌，对手叠5层中毒并自己回3血', cost: 3 } },
   { id: 'gambler',   emoji: '🎲', name: '赌徒', type: '随机',
     passive: { name: '双骰', desc: '所有随机卡牌(混沌/能量爆发/命运契约/幻象术/召唤仪式)触发两次' },
     active:  { name: '换牌', desc: '消耗2水晶，弃全部手牌，重抽等量张', cost: 2 } },
   { id: 'cryomage', emoji: '❄', name: '寒冰法师', type: '控制',
-    passive: { name: '霜寒', desc: '打出冰封牌时额外造成5点普通伤害' },
+    passive: { name: '霜寒', desc: '对手冻结期间，你对其造成的所有普通伤害+3' },
     active:  { name: '极地风暴', desc: '消耗3水晶，对手本回合所有卡牌费用+2', cost: 3 } },
   { id: 'archmage', emoji: '🧙', name: '大法师', type: '资源',
     passive: { name: '博学', desc: '每回合抽牌数+1(共4张)' },
-    active:  { name: '奥术涌动', desc: '消耗3水晶，立即抽3张牌', cost: 3 } }
+    active:  { name: '奥术涌动', desc: '消耗3水晶，抽2张牌并随机弃掉对手1张手牌', cost: 3 } }
 ];
 
 class CardGameEngine {
@@ -286,9 +286,11 @@ class CardGameEngine {
     return v;
   }
 
-  // 普通伤害修饰点：集中处理狂战士被动(+3)、主动(翻倍)、壁垒守卫减伤。仅卡牌普通伤害调用。
+  // 普通伤害修饰点：集中处理狂战士被动(+3)、寒冰法师冻结易伤(+3)、主动(翻倍)、壁垒守卫减伤。仅卡牌普通伤害调用。
   _dealDamage(user, target, baseV) {
-    if (user.character === 'berserker' && user.hp <= user.maxHp * CONFIG.BERSERKER_HP_RATIO) baseV += 3;
+    if (user.character === 'berserker' && user.hp <= user.maxHp * CONFIG.BERSERKER_HP_RATIO) baseV += CONFIG.BERSERKER_BONUS;
+    // 寒冰法师被动：对手冻结期间受到的伤害+3
+    if (user.character === 'cryomage' && target.frozen) baseV += CONFIG.CRYO_VULN;
     if (user.berserkerDoubleDamage) baseV *= 2;
     // 壁垒守卫：在场期间普通伤害减半（向下取整）
     if (target.summons && target.summons.some(s => s.kind === 'guardian') && baseV > 0) {
@@ -480,11 +482,6 @@ class CardGameEngine {
       this._drawCards(user, 1);
       this.logs.push(`${user.name} 触发【血契】抽1张牌`);
     }
-    if (user.character === 'cryomage' && card.type === 'freeze') {
-      const dmg = this._effectiveDamage(target, 5);
-      target.hp = Math.max(0, target.hp - dmg);
-      this.logs.push(`${user.name} 触发【霜寒】额外造成5点伤害`);
-    }
   }
 
   _applyStatusEffects(pp) {
@@ -525,11 +522,16 @@ class CardGameEngine {
     // 大法师被动：抽牌+1
     const drawN = p.character === 'archmage' ? TURN_DRAW + 1 : TURN_DRAW;
     this._drawCards(p, drawN);
-    // 圣骑士被动：回合开始回2血(灼烧时除外)
+    // 圣骑士被动：回合开始回2血(灼烧时除外) + 已有护盾时额外叠盾
     if (p.character === 'paladin' && p.burn === 0 && p.hp > 0) {
       const before = p.hp;
       p.hp = Math.min(p.maxHp, p.hp + 2);
       if (p.hp > before) this.logs.push(`${p.name} 触发【圣愈】回2血`);
+      // 叠盾：已有护盾时额外+3盾
+      if (p.shield > 0) {
+        p.shield += CONFIG.PALADIN_SHIELD_BONUS;
+        this.logs.push(`${p.name} 触发【圣盾增幅】护盾+${CONFIG.PALADIN_SHIELD_BONUS}`);
+      }
     }
     // 装备触发：宝藏(水晶+1，可临时突破上限) → 影刃(对对手造成伤害) → 守护盾(+护盾)
     if (p.equipManaTurn > 0) {
@@ -592,9 +594,9 @@ class CardGameEngine {
 
     switch (user.character) {
       case 'berserker':
-        user.hp = Math.max(0, user.hp - 5);
+        user.hp = Math.max(0, user.hp - CONFIG.BERSERKER_SELF_DMG);
         user.berserkerDoubleDamage = true;
-        this.logs.push(`${user.name} 释放【血怒】(耗${ch.active.cost}水晶)自扣5血，本回合伤害翻倍`);
+        this.logs.push(`${user.name} 释放【血怒】(耗${ch.active.cost}水晶)自扣${CONFIG.BERSERKER_SELF_DMG}血，本回合伤害翻倍`);
         break;
       case 'paladin':
         user.shield += 10;
@@ -604,11 +606,14 @@ class CardGameEngine {
         const ci = user.hand.findIndex(c => c.uuid === msg.uuid);
         if (ci === -1) { user.mana += ch.active.cost; return; } // 牌不存在，退还水晶
         user.hand.splice(ci, 1);
+        // 弃牌补偿回3血（灼烧时除外，与治疗逻辑一致）
+        const healed = user.burn === 0;
+        if (healed) user.hp = Math.min(user.maxHp, user.hp + 3);
         if (target.negImmune) {
-          this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶,被护罩抵挡)`);
+          this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶,被护罩抵挡,${healed ? '回3血' : '灼烧中回血无效'})`);
         } else {
           target.poison += 5;
-          this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶)对手叠5层中毒`);
+          this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶)对手叠5层中毒,${healed ? '回3血' : '灼烧中回血无效'}`);
         }
         break;
       }
@@ -624,8 +629,14 @@ class CardGameEngine {
         this.logs.push(`${user.name} 释放【极地风暴】(耗${ch.active.cost}水晶)，对手本回合出牌费用+2`);
         break;
       case 'archmage':
-        this._drawCards(user, 3);
-        this.logs.push(`${user.name} 释放【奥术涌动】(耗${ch.active.cost}水晶)抽3张牌`);
+        this._drawCards(user, 2);
+        if (target.hand.length > 0) {
+          const di = Math.floor(Math.random() * target.hand.length);
+          const d = target.hand.splice(di, 1)[0];
+          this.logs.push(`${user.name} 释放【奥术涌动】(耗${ch.active.cost}水晶)抽2张牌并弃掉对手【${d.name}】`);
+        } else {
+          this.logs.push(`${user.name} 释放【奥术涌动】(耗${ch.active.cost}水晶)抽2张牌(对手无手牌可弃)`);
+        }
         break;
     }
     user.skillUsedThisTurn = true;
