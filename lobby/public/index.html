@@ -846,7 +846,7 @@ function handleMessage(d) {
           <div class="char-name">${c.name}</div>
           <div class="char-type">${c.type}</div>
           <div class="char-skill"><b>被动</b> ${c.passive.name}：${c.passive.desc}</div>
-          <div class="char-skill"><b>主动</b> ${c.active.name}：${c.active.desc}（${c.active.maxUses}次）</div>
+          <div class="char-skill"><b>主动</b> ${c.active.name}：${c.active.desc}（每回合1次）</div>
         </div>`).join('');
       charGrid.querySelectorAll('.character-card').forEach(card => {
         card.onclick = () => {
