@@ -58,16 +58,16 @@ const CHARACTERS = [
     active:  { name: '圣盾', desc: '消耗2水晶，获得10点护盾', cost: 2 } },
   { id: 'warlock',   emoji: '💀', name: '术士', type: '资源',
     passive: { name: '血契', desc: '打出负面效果牌(中毒/灼烧/诅咒/冰封/死亡宣告)后抽1张' },
-    active:  { name: '诅咒', desc: '消耗3水晶，弃1张手牌，对手叠5层中毒并自己回3血', cost: 3 } },
+    active:  { name: '诅咒', desc: '消耗3水晶，弃1张手牌，对手叠7层中毒并自己回5血', cost: 3 } },
   { id: 'gambler',   emoji: '🎲', name: '赌徒', type: '随机',
-    passive: { name: '双骰', desc: '所有随机卡牌(混沌/能量爆发/命运契约/幻象术/召唤仪式)触发两次' },
+    passive: { name: '双骰', desc: '随机卡牌触发两次，但有20%概率自己得一个负面效果' },
     active:  { name: '换牌', desc: '消耗2水晶，弃全部手牌，重抽等量张', cost: 2 } },
   { id: 'cryomage', emoji: '❄', name: '寒冰法师', type: '控制',
     passive: { name: '霜寒', desc: '对手冻结期间，你对其造成的所有普通伤害+3' },
     active:  { name: '极地风暴', desc: '消耗3水晶，对手本回合所有卡牌费用+2', cost: 3 } },
   { id: 'archmage', emoji: '🧙', name: '大法师', type: '资源',
     passive: { name: '博学', desc: '每回合抽牌数+1(共4张)' },
-    active:  { name: '奥术涌动', desc: '消耗3水晶，抽2张牌并随机弃掉对手1张手牌', cost: 3 } }
+    active:  { name: '奥术涌动', desc: '消耗2水晶，抽2张牌并随机弃掉对手2张手牌', cost: 2 } }
 ];
 
 class CardGameEngine {
@@ -157,6 +157,7 @@ class CardGameEngine {
 
     const extra = this._resolveCard(user, target, card);
     this._onCardResolved(user, target, card);
+    this._gamblerBackfire(user, target, card, extra);
     let log = `${user.name} 使用了【${card.name}】`;
     const chaosLabel = {damage:'伤害',heal:'治疗',shield:'护盾',cleanse:'净化',poison:'中毒',burn:'灼烧',freeze:'冰冻'};
     if (Array.isArray(extra.chaosEffect)) {
@@ -484,6 +485,23 @@ class CardGameEngine {
     }
   }
 
+  // 赌徒随机牌反噬：用随机牌时20%概率自己得一个随机负面效果
+  _gamblerBackfire(user, target, card, extra) {
+    const RAND_TYPES = ['chaos', 'rand_mana', 'rand_pact', 'rand_copy', 'rand_summon'];
+    if (user.character !== 'gambler' || !RAND_TYPES.includes(card.type)) return;
+    if (Math.random() >= CONFIG.GAMBLER_BACKFIRE) return; // 80%无事发生
+
+    if (user.negImmune) {
+      this.logs.push(`${user.name} 的随机牌反噬被护罩抵挡`);
+      return;
+    }
+    const pool = ['poison', 'burn', 'freeze'];
+    const neg = pool[Math.floor(Math.random() * pool.length)];
+    if (neg === 'poison') { user.poison += 3; this.logs.push(`${user.name} 随机牌反噬！自己中毒3层`); }
+    else if (neg === 'burn') { user.burn += 3; user.burnTurn = CONFIG.STATUS_DURATION; this.logs.push(`${user.name} 随机牌反噬！自己灼烧3层`); }
+    else { user.frozen = true; this.logs.push(`${user.name} 随机牌反噬！自己被冻结`); }
+  }
+
   _applyStatusEffects(pp) {
     let parts = [];
     if (pp.immune) {
@@ -606,14 +624,14 @@ class CardGameEngine {
         const ci = user.hand.findIndex(c => c.uuid === msg.uuid);
         if (ci === -1) { user.mana += ch.active.cost; return; } // 牌不存在，退还水晶
         user.hand.splice(ci, 1);
-        // 弃牌补偿回3血（灼烧时除外，与治疗逻辑一致）
+        // 弃牌补偿回血（灼烧时除外，与治疗逻辑一致）
         const healed = user.burn === 0;
-        if (healed) user.hp = Math.min(user.maxHp, user.hp + 3);
+        if (healed) user.hp = Math.min(user.maxHp, user.hp + CONFIG.WARLOCK_HEAL);
         if (target.negImmune) {
-          this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶,被护罩抵挡,${healed ? '回3血' : '灼烧中回血无效'})`);
+          this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶,被护罩抵挡,${healed ? '回'+CONFIG.WARLOCK_HEAL+'血' : '灼烧中回血无效'})`);
         } else {
-          target.poison += 5;
-          this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶)对手叠5层中毒,${healed ? '回3血' : '灼烧中回血无效'}`);
+          target.poison += CONFIG.WARLOCK_POISON;
+          this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶)对手叠${CONFIG.WARLOCK_POISON}层中毒,${healed ? '回'+CONFIG.WARLOCK_HEAL+'血' : '灼烧中回血无效'}`);
         }
         break;
       }
@@ -630,12 +648,14 @@ class CardGameEngine {
         break;
       case 'archmage':
         this._drawCards(user, 2);
-        if (target.hand.length > 0) {
-          const di = Math.floor(Math.random() * target.hand.length);
-          const d = target.hand.splice(di, 1)[0];
-          this.logs.push(`${user.name} 释放【奥术涌动】(耗${ch.active.cost}水晶)抽2张牌并弃掉对手【${d.name}】`);
-        } else {
-          this.logs.push(`${user.name} 释放【奥术涌动】(耗${ch.active.cost}水晶)抽2张牌(对手无手牌可弃)`);
+        {
+          const discarded = [];
+          for (let i = 0; i < 2 && target.hand.length > 0; i++) {
+            const di = Math.floor(Math.random() * target.hand.length);
+            discarded.push(target.hand.splice(di, 1)[0].name);
+          }
+          if (discarded.length) this.logs.push(`${user.name} 释放【奥术涌动】(耗${ch.active.cost}水晶)抽2张并弃对手【${discarded.join('、')}】`);
+          else this.logs.push(`${user.name} 释放【奥术涌动】(耗${ch.active.cost}水晶)抽2张(对手无手牌)`);
         }
         break;
     }

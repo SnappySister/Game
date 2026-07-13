@@ -18,6 +18,10 @@ module.exports = {
   CRYO_VULN: 3,               // 寒冰法师冻结易伤量（对手冻结时伤害+3）
   GUARDIAN_REDUCE: 0.5,       // 壁垒守卫减伤比例
   PALADIN_SHIELD_BONUS: 3,    // 圣骑士被动叠盾量（已有护盾时额外+盾）
+  WARLOCK_POISON: 7,          // 术士诅咒叠毒层数
+  WARLOCK_HEAL: 5,            // 术士诅咒回血量
+  GAMBLER_BACKFIRE: 0.2,      // 赌徒随机牌反噬概率(20%)
+  GAMBLER_BACKFIRE_DMG: 5,    // 赌徒反噬无负面牌时的扣血量
   STATUS_DURATION: 3,         // 灼烧持续回合数
   DOOM_DAMAGE_PER_STACK: 20    // 死亡倒计时每层爆发伤害
 };
