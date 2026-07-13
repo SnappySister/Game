@@ -1,0 +1,29 @@
+name: Deploy to Server
+
+# 推送到 main 分支时自动部署
+on:
+  push:
+    branches: [ main ]
+  # 支持手动触发（Actions 页面点 Run workflow）
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          port: ${{ secrets.SSH_PORT }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd ${{ secrets.PROJECT_PATH }}
+            # 拉取最新代码
+            git pull origin main
+            # 如有依赖变更可取消下一行注释
+            # npm install --production
+            # 重启服务（PM2）
+            pm2 restart lobby
+            echo "部署完成：$(date)"
