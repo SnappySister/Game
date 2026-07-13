@@ -6,10 +6,10 @@ const START_HAND = CONFIG.START_HAND;
 const TURN_DRAW = CONFIG.TURN_DRAW;
 
 const CARDS = [
-  { id: 'fireball',  name: '火球术',   type: 'damage',    value: 6,  cost: 1, color: '#e74c3c', rarity: 'common', desc: '造成6点伤害' },
-  { id: 'heal',      name: '治疗术',   type: 'heal',      value: 6,  cost: 1, color: '#2ecc71', rarity: 'common', desc: '恢复6点生命' },
-  { id: 'shield',    name: '圣盾',     type: 'shield',    value: 6,  cost: 1, color: '#3498db', rarity: 'common', desc: '获得6点护盾' },
-  { id: 'thunder',   name: '雷击',     type: 'damage',    value: 20, cost: 6, color: '#9b59b6', rarity: 'uncommon', desc: '造成20点伤害' },
+  { id: 'fireball',  name: '火球术',   type: 'damage',    value: 7,  cost: 1, color: '#e74c3c', rarity: 'common', desc: '造成7点伤害' },
+  { id: 'heal',      name: '治疗术',   type: 'heal',      value: 7,  cost: 1, color: '#2ecc71', rarity: 'common', desc: '恢复7点生命' },
+  { id: 'shield',    name: '圣盾',     type: 'shield',    value: 7,  cost: 1, color: '#3498db', rarity: 'common', desc: '获得7点护盾' },
+  { id: 'thunder',   name: '雷击',     type: 'damage',    value: 22, cost: 6, color: '#9b59b6', rarity: 'uncommon', desc: '造成22点伤害' },
   { id: 'vampiric',  name: '吸血',     type: 'vampiric',  value: 12, cost: 5, color: '#c0392b', rarity: 'uncommon', desc: '造成12伤并回6血' },
   { id: 'chaos',     name: '混沌',     type: 'chaos',     value: 6,  cost: 2, color: '#f39c12', rarity: 'common', desc: '随机效果(伤害、治疗、护盾、净化、中毒、灼烧、冰冻)' },
   { id: 'poison',    name: '毒雾',     type: 'poison',    value: 8,  cost: 3, color: '#27ae60', rarity: 'common', stacks: 3, desc: '造成8伤并中毒3层' },
@@ -18,12 +18,12 @@ const CARDS = [
   { id: 'sprint',    name: '疾风斩',   type: 'draw_dmg',  value: 8,  cost: 3, color: '#e67e22', rarity: 'common', desc: '造成8伤并抽1' },
   { id: 'sacrifice', name: '献祭',     type: 'sacrifice', value: 15, cost: 4, color: '#8e44ad', rarity: 'uncommon', desc: '自扣8血，对手扣15真伤' },
   { id: 'suicide',   name: '自爆卡车', type: 'suicide',   value: 25, cost: 7, color: '#c0392b', rarity: 'uncommon', desc: '双方各受25真伤' },
-  { id: 'block',     name: '格挡',     type: 'block',     value: 0,  cost: 4, color: '#f1c40f', rarity: 'uncommon', desc: '免疫下回合所有伤害' },
+  { id: 'block',     name: '格挡',     type: 'block',     value: 0,  cost: 3, color: '#f1c40f', rarity: 'uncommon', desc: '免疫下回合所有伤害' },
   { id: 'steal',     name: '顺手牵羊', type: 'steal',     value: 0,  cost: 2, color: '#2c3e50', rarity: 'common', desc: '随机偷对手1张牌' },
-  { id: 'combust',   name: '烈焰',     type: 'combust',   value: 3,  cost: 5, color: '#e67e22', rarity: 'uncommon', fixedDmg: 6, desc: '造成6伤并灼烧3层' },
-  { id: 'curse',     name: '诅咒',     type: 'curse',     value: 5,  cost: 5, color: '#8e44ad', rarity: 'uncommon', desc: '对手叠5层中毒' },
-  { id: 'freeze',    name: '冰封',     type: 'freeze',    value: 0,  cost: 4, color: '#00bcd4', rarity: 'uncommon', desc: '冻结对手1回合' },
-  { id: 'doom',      name: '死亡宣告', type: 'doom',      value: 3,  cost: 5, color: '#607d8b', rarity: 'uncommon', desc: '3回合后扣20血' },
+  { id: 'combust',   name: '烈焰',     type: 'combust',   value: 3,  cost: 5, color: '#e67e22', rarity: 'uncommon', fixedDmg: 9, desc: '造成9伤并灼烧3层' },
+  { id: 'curse',     name: '诅咒',     type: 'curse',     value: 6,  cost: 5, color: '#8e44ad', rarity: 'uncommon', desc: '对手叠6层中毒' },
+  { id: 'freeze',    name: '冰封',     type: 'freeze',    value: 0,  cost: 3, color: '#00bcd4', rarity: 'common', desc: '冻结对手1回合' },
+  { id: 'poisoncloud', name: '毒云术', type: 'poison', value: 6,  cost: 4, color: '#27ae60', rarity: 'uncommon', stacks: 4, desc: '造成6伤并中毒4层' },
   { id: 'ward',      name: '护罩',     type: 'ward',      value: 0,  cost: 3, color: '#f1c40f', rarity: 'common', desc: '下回合免疫负面效果' },
   { id: 'cleanse',   name: '净化',     type: 'cleanse',   value: 3,  cost: 4, color: '#ecf0f1', rarity: 'common', desc: '清除自身所有负面效果并恢复3点生命' },
   { id: 'delay_dmg', name: '火灵', type: 'summon_fire', value: 5, cost: 4, color: '#e67e22', rarity: 'rare', summonDmg: 5, summonIncr: 2, summonTurns: 3, desc: '召唤火灵，在场3回合每回合对对手造成5/7/9点递增普通伤害' },
@@ -40,7 +40,22 @@ const CARDS = [
   { id: 'holylight', name: '圣光',     type: 'cleanse_lite', value: 0, cost: 2, color: '#ecf0f1', rarity: 'rare', desc: '清除对面所有随从（含壁垒守卫）' },
   { id: 'purge',     name: '净化火焰', type: 'cleanse_burn', value: 8, cost: 5, color: '#e74c3c', rarity: 'rare', drawCount: 1, desc: '清自身负面+回8血+抽1张，并清除对面所有随从' },
   { id: 'spider',    name: '蜘蛛女皇', type: 'summon_spider', value: 2, cost: 4, color: '#27ae60', rarity: 'rare', summonStacks: 2, summonTurns: 3, desc: '召唤蜘蛛女皇，在场3回合每回合给对手叠2层中毒' },
-  { id: 'guardian',  name: '壁垒守卫', type: 'summon_guard',  value: 0,  cost: 3, color: '#3498db', rarity: 'rare', summonTurns: 3, desc: '召唤壁垒守卫，在场3回合期间受到的普通伤害减半' }
+  { id: 'guardian',  name: '壁垒守卫', type: 'summon_guard',  value: 0,  cost: 3, color: '#3498db', rarity: 'rare', summonTurns: 3, desc: '召唤壁垒守卫，在场3回合期间受到的普通伤害减半' },
+  /* ===== 高费终结牌 ===== */
+  { id: 'deathtouch', name: '死亡之触', type: 'damage', value: 18, cost: 6, color: '#8e44ad', rarity: 'rare', summonHeal: 8, desc: '造成18点普通伤害，若对手有随从则回8血' },
+  { id: 'dragonbreath', name: '龙息', type: 'combust', value: 5, cost: 7, color: '#e67e22', rarity: 'rare', fixedDmg: 12, burnStacks: 5, desc: '造成12伤并灼烧5层' },
+  { id: 'meteor',  name: '陨石坠落', type: 'meteor', value: 25, cost: 8, color: '#c0392b', rarity: 'rare', heal: 10, desc: '造成25点真实伤害(无视护盾)并回10血' },
+  { id: 'judge',   name: '神圣审判', type: 'cond_neg', value: 16, cost: 7, color: '#f1c40f', rarity: 'rare', bonusDmg: 8, desc: '造成16伤，对手有负面效果时额外+8伤' },
+  { id: 'hellfire', name: '地狱火', type: 'summon_fire', value: 10, cost: 6, color: '#c0392b', rarity: 'rare', summonDmg: 10, summonIncr: 0, summonTurns: 3, desc: '召唤地狱火，在场3回合每回合造成10伤(固定不递增)' },
+  /* ===== 伤害牌(填补中段) ===== */
+  { id: 'lightning', name: '闪电箭', type: 'damage', value: 9, cost: 3, color: '#f1c40f', rarity: 'common', desc: '造成9点普通伤害' },
+  { id: 'fireblast', name: '烈焰冲击', type: 'combust', value: 2, cost: 4, color: '#e67e22', rarity: 'uncommon', fixedDmg: 10, desc: '造成10伤并灼烧2层' },
+  { id: 'bladewraith', name: '剑魔', type: 'summon_fire', value: 7, cost: 5, color: '#95a5a6', rarity: 'rare', summonDmg: 7, summonIncr: 0, summonTurns: 3, desc: '召唤剑魔，在场3回合每回合造成7点普通伤害' },
+  { id: 'firestaff', name: '烈焰之杖', type: 'equip_burn', value: 6, cost: 4, color: '#e67e22', rarity: 'uncommon', equipDmg: 6, burnStacks: 1, equipTurns: 2, desc: '装备2回合，每回合造成6伤并灼烧1层' },
+  /* ===== 冰系牌(救寒冰法师) ===== */
+  { id: 'icecone',  name: '冰锥',     type: 'freeze_dmg', value: 6, cost: 4, color: '#00bcd4', rarity: 'uncommon', desc: '造成6点普通伤害并冻结对手' },
+  { id: 'blizzard', name: '暴风雪',   type: 'freeze_dmg', value: 10, cost: 6, color: '#00bcd4', rarity: 'rare', desc: '造成10点普通伤害并冻结对手' },
+  { id: 'icearmor', name: '寒冰护甲', type: 'shield', value: 10, cost: 3, color: '#3498db', rarity: 'uncommon', desc: '获得10点护盾（纯防御）' }
 ];
 
 const COIN_TEMPLATE = {
@@ -89,6 +104,7 @@ class CardGameEngine {
       delayDamages: [],
       equipBladeTurn: 0,
       equipBladeDmg: 0,
+      equipBurnStacks: 0,
       equipShieldTurn: 0,
       equipShieldAmt: 0,
       equipManaTurn: 0,
@@ -174,7 +190,6 @@ class CardGameEngine {
       else log += '（对手没有手牌！）';
     }
     if (card.type === 'freeze') log += '（对手被冰冻）';
-    if (card.type === 'doom') log += '（死亡倒计时3回合）';
     const chaosCleanseCleared = (Array.isArray(extra.chaosEffect) ? extra.chaosEffect.includes('cleanse') : extra.chaosEffect === 'cleanse') && extra.cleansed;
     if (chaosCleanseCleared) log += '（清除所有负面）';
     if (card.type === 'cleanse') log += extra.cleansed ? '（清除所有负面）' : '（无负面可清）';
@@ -198,6 +213,12 @@ class CardGameEngine {
     if (card.type === 'rand_pact') log += ` → 回${extra.pactHeal}血，对手${extra.pactNegs.map(n => ({poison:'中毒',burn:'灼烧',freeze:'冰冻'})[n]).join('+')}${extra.negBlocked ? '（被护罩抵挡）' : ''}${extra.healBlocked ? '（灼烧中回血无效）' : ''}`;
     if (card.type === 'rand_copy') log += extra.copied.length ? ` → 复制了【${extra.copied.join('、')}】` : '（对手无手牌）';
     if (card.type === 'rand_summon') log += ` → 召唤了${extra.summoned.join('、')}`;
+    if (card.type === 'meteor') log += ` → 造成${extra.meteorDmg}真伤${user.burn === 0 ? '并回'+(card.heal||10)+'血' : '（灼烧中回血无效）'}`;
+    if (card.type === 'cond_neg') log += extra.judged ? ` → 对手有负面，造成${v + (card.bonusDmg||8)}伤` : ` → 造成${v}伤`;
+    if (card.type === 'freeze_dmg') log += ` → 造成${v}伤并冻结对手${extra.negBlocked ? '（被护罩抵挡冻结）' : ''}`;
+    if (card.type === 'ice_shield') log += ` → 获得${v}护盾并冻结对手${extra.negBlocked ? '（冻结被护罩抵挡）' : ''}`;
+    if (card.type === 'equip_burn') log += '（装备烈焰之杖，每回合6伤+灼烧1层）';
+    if (extra.summonHealed) log += `（对手有随从，回${extra.summonHealed}血）`;
     if (extra.healBlocked) log += '（灼烧中，回血无效）';
     if (extra.negBlocked) log += '（被护罩抵挡）';
     this.logs.push(log);
@@ -308,7 +329,13 @@ class CardGameEngine {
     const v = card.value;
     let extra = {};
     const RESOLVERS = {
-      damage:   () => { this._dealDamage(user, target, v); },
+      damage:   () => {
+        this._dealDamage(user, target, v);
+        // 死亡之触：对手有随从则回血
+        if (card.summonHeal && target.summons && target.summons.length > 0) {
+          if (user.burn === 0) { user.hp = Math.min(user.maxHp, user.hp + card.summonHeal); extra = { ...extra, summonHealed: card.summonHeal }; }
+        }
+      },
       heal:     () => { if (user.burn > 0) extra = { healBlocked: true }; else user.hp = Math.min(user.maxHp, user.hp + v); },
       shield:   () => { user.shield += v; },
       vampiric: () => { this._dealDamage(user, target, v); if (user.burn > 0) extra = { healBlocked: true }; else user.hp = Math.min(user.maxHp, user.hp + Math.floor(v / 2)); },
@@ -316,7 +343,6 @@ class CardGameEngine {
       combust:  () => { this._dealDamage(user, target, card.fixedDmg || 6); if (target.negImmune) extra = { negBlocked: true }; else { target.burn += v; target.burnTurn = CONFIG.STATUS_DURATION; } },
       curse:    () => { if (target.negImmune) extra = { negBlocked: true }; else target.poison += v; },
       freeze:   () => { if (target.negImmune) extra = { negBlocked: true }; else target.frozen = true; },
-      doom:     () => { if (target.negImmune) extra = { negBlocked: true }; else { target.doom = Math.max(target.doom || 0, v); target.doomStacks = Math.min(5, (target.doomStacks || 0) + 1); } },
       draw:     () => { this._drawCards(user, v); },
       draw_dmg: () => { this._dealDamage(user, target, v); this._drawCards(user, 1); },
       chaos:    () => {
@@ -403,6 +429,35 @@ class CardGameEngine {
       cond_draw: () => {
         const n = this._realHandCount(user) <= 2 ? 3 : 1;
         this._drawCards(user, n);
+      },
+      /* ===== 高费终结牌 ===== */
+      // 陨石坠落：真实伤害(无视护盾)+回血
+      meteor: () => {
+        const dmg = target.immune ? 0 : (card.value || 25);
+        target.hp = Math.max(0, target.hp - dmg);
+        if (user.burn === 0) user.hp = Math.min(user.maxHp, user.hp + (card.heal || 10));
+        extra = { ...extra, meteorDmg: dmg };
+      },
+      // 神圣审判：对手有负面时+bonusDmg
+      cond_neg: () => {
+        let dmg = v;
+        const hasNeg = target.poison > 0 || target.burn > 0 || target.frozen || target.doom > 0;
+        if (hasNeg) dmg += (card.bonusDmg || 8);
+        this._dealDamage(user, target, dmg);
+        extra = { ...extra, judged: hasNeg };
+      },
+      /* ===== 冰系牌 ===== */
+      // 冰锥/暴风雪：伤害+冻结
+      freeze_dmg: () => {
+        this._dealDamage(user, target, v);
+        if (target.negImmune) extra = { ...extra, negBlocked: true };
+        else target.frozen = true;
+      },
+      /* ===== 烈焰之杖装备：每回合伤害+灼烧 ===== */
+      equip_burn: () => {
+        user.equipBladeTurn = card.equipTurns || 2;
+        user.equipBladeDmg = card.equipDmg || 6;
+        user.equipBurnStacks = card.burnStacks || 1;
       },
       /* ===== 随机卡牌(赌徒双发) ===== */
       // 能量爆发：与水晶联动，伤害=剩余水晶×倍率
@@ -561,8 +616,14 @@ class CardGameEngine {
       const target = this.players[1 - idx];
       const dmg = p.equipBladeDmg || 4;
       this._dealDamage(p, target, dmg);
+      // 烈焰之杖：附带灼烧
+      if (p.equipBurnStacks > 0 && !target.negImmune) {
+        target.burn += p.equipBurnStacks;
+        target.burnTurn = CONFIG.STATUS_DURATION;
+      }
       p.equipBladeTurn--;
-      this.logs.push(`${p.name} 的影刃造成${dmg}点伤害${p.equipBladeTurn === 0 ? '（损坏）' : ''}`);
+      const name = p.equipBurnStacks > 0 ? '烈焰之杖' : '影刃';
+      this.logs.push(`${p.name} 的${name}造成${dmg}点伤害${p.equipBurnStacks > 0 ? `并灼烧${p.equipBurnStacks}层` : ''}${p.equipBladeTurn === 0 ? '（损坏）' : ''}`);
     }
     if (p.equipShieldTurn > 0) {
       const amt = p.equipShieldAmt || 5;
