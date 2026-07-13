@@ -469,7 +469,6 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
 .doom-val   { color: #607d8b; font-weight: bold; }
 .equip-tag  { color: #9b59b6; font-weight: bold; margin-left: 4px; }
 .delay-tag  { color: #e67e22; font-weight: bold; margin-left: 4px; }
-.locked-tag { color: #8e44ad; font-weight: bold; margin-left: 4px; }
 .hand-count { font-size: 12px; color: #888; min-width: 64px; text-align: right; }
 
 /* ===== 水晶 ===== */

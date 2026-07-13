@@ -97,7 +97,6 @@
         <span class="frozen-tag" style="display:none"> ❄冻</span>
         <span class="immune-tag" style="display:none"> 🛡免疫</span>
         <span class="negimmune-tag" style="display:none"> 🛡护</span>
-        <span class="locked-tag" style="display:none"> 🔒锁</span>
         <span class="equip-tag" style="display:none"></span>
         <span class="delay-tag" style="display:none"></span>
       </div>
@@ -123,7 +122,6 @@
         <span class="frozen-tag" style="display:none"> ❄冻</span>
         <span class="immune-tag" style="display:none"> 🛡免疫</span>
         <span class="negimmune-tag" style="display:none"> 🛡护</span>
-        <span class="locked-tag" style="display:none"> 🔒锁</span>
         <span class="equip-tag" style="display:none"></span>
         <span class="delay-tag" style="display:none"></span>
       </div>
@@ -203,11 +201,11 @@
       <p><b>主动技能机制：</b>主动技能消耗一定<b>水晶</b>，在自己的回合可释放，<b>每回合最多1次</b>。水晶不足或本回合已用过则无法释放。下回合开始自动恢复可用。</p>
       <p><b style="color:#9b59b6">😈 狂战士（输出）</b>　被动【嗜血】：HP≤30%时，所有普通伤害+3。　主动【血怒】3💧：扣自己5血，本回合普通伤害翻倍。</p>
       <p><b style="color:#9b59b6">🛡 圣骑士（防御）</b>　被动【圣愈】：每回合开始（灼烧时除外）回2血。　主动【圣盾】2💧：获得10点护盾。</p>
-      <p><b style="color:#9b59b6">💀 术士（资源）</b>　被动【血契】：打出负面效果牌（毒雾/烈焰/诅咒/冰封/死亡宣告）后抽1张。　主动【诅咒】3💧：弃1张手牌，对手叠4层中毒并<b>锁定负面</b>（对手下回合无法净化，状态区显示 🔒锁）。</p>
+      <p><b style="color:#9b59b6">💀 术士（资源）</b>　被动【血契】：打出负面效果牌（毒雾/烈焰/诅咒/冰封/死亡宣告）后抽1张。　主动【诅咒】3💧：弃1张手牌，对手叠5层中毒。</p>
       <p><b style="color:#9b59b6">🎲 赌徒（随机）</b>　被动【双骰】：混沌卡牌效果触发两次。　主动【换牌】2💧：弃全部手牌，重抽等量张。</p>
       <p><b style="color:#9b59b6">❄ 寒冰法师（控制）</b>　被动【霜寒】：打出冰封牌时额外造成5点普通伤害。　主动【极地风暴】3💧：对手本回合所有卡牌费用+2（软控，对手仍可出牌，仅拖慢节奏）。</p>
       <p><b style="color:#9b59b6">🧙 大法师（资源）</b>　被动【博学】：每回合抽牌数+1（共4张）。　主动【奥术涌动】3💧：立即抽3张牌。</p>
-      <p><b>注：</b>狂战士的增伤/翻倍仅作用于普通伤害，不影响真实伤害与负面效果扣血。主动技能不受冰冻限制（非卡牌）。术士释放【诅咒】需先点击技能再选一张手牌弃掉，诅咒的<b>锁定负面</b>会让对手下回合净化无效。寒冰法师【极地风暴】的费用惩罚仅持续对手一个回合。</p>
+      <p><b>注：</b>狂战士的增伤/翻倍仅作用于普通伤害，不影响真实伤害与负面效果扣血。主动技能不受冰冻限制（非卡牌）。术士释放【诅咒】需先点击技能再选一张手牌弃掉。寒冰法师【极地风暴】的费用惩罚仅持续对手一个回合。</p>
     </div>
     <button id="close-rule">知道了</button>
   </div>
@@ -1266,8 +1264,6 @@ function updateArea(id, p) {
   if (doomStacks) doomStacks.textContent = p.doomStacks > 1 ? '×' + p.doomStacks : '';
   const negImmuneTag = el.querySelector('.negimmune-tag');
   if (negImmuneTag) negImmuneTag.style.display = p.negImmune ? 'inline' : 'none';
-  const lockedTag = el.querySelector('.locked-tag');
-  if (lockedTag) lockedTag.style.display = p.negativeLocked ? 'inline' : 'none';
   // 装备显示
   const equipTag = el.querySelector('.equip-tag');
   if (equipTag) {

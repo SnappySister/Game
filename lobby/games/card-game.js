@@ -1,42 +1,45 @@
 /* 卡牌游戏引擎 - 从 card-game/server.js 提取的游戏逻辑类 */
 
 const CARDS = [
-  { id: 'fireball',  name: '火球术',   type: 'damage',    value: 6,  cost: 1, color: '#e74c3c', desc: '造成6点伤害' },
-  { id: 'heal',      name: '治疗术',   type: 'heal',      value: 6,  cost: 1, color: '#2ecc71', desc: '恢复6点生命' },
-  { id: 'shield',    name: '圣盾',     type: 'shield',    value: 6,  cost: 1, color: '#3498db', desc: '获得6点护盾' },
-  { id: 'thunder',   name: '雷击',     type: 'damage',    value: 20, cost: 6, color: '#9b59b6', desc: '造成20点伤害' },
-  { id: 'vampiric',  name: '吸血',     type: 'vampiric',  value: 12, cost: 5, color: '#c0392b', desc: '造成12伤并回6血' },
-  { id: 'chaos',     name: '混沌',     type: 'chaos',     value: 6,  cost: 2, color: '#f39c12', desc: '随机效果(伤害、治疗、护盾、净化、中毒、灼烧、冰冻)' },
-  { id: 'poison',    name: '毒雾',     type: 'poison',    value: 8,  cost: 3, color: '#27ae60', desc: '造成8伤并中毒3层' },
-  { id: 'barrier',   name: '铁壁',     type: 'shield',    value: 20, cost: 6, color: '#2980b9', desc: '获得20点护盾' },
-  { id: 'arcane',    name: '奥术智慧', type: 'draw',      value: 2,  cost: 3, color: '#1abc9c', desc: '抽2张牌' },
-  { id: 'sprint',    name: '疾风斩',   type: 'draw_dmg',  value: 8,  cost: 3, color: '#e67e22', desc: '造成8伤并抽1' },
-  { id: 'sacrifice', name: '献祭',     type: 'sacrifice', value: 15, cost: 4, color: '#8e44ad', desc: '自扣8血，对手扣15真伤' },
-  { id: 'suicide',   name: '自爆卡车', type: 'suicide',   value: 25, cost: 7, color: '#c0392b', desc: '双方各受25真伤' },
-  { id: 'block',     name: '格挡',     type: 'block',     value: 0,  cost: 4, color: '#f1c40f', desc: '免疫下回合所有伤害' },
-  { id: 'steal',     name: '顺手牵羊', type: 'steal',     value: 0,  cost: 2, color: '#2c3e50', desc: '随机偷对手1张牌' },
-  { id: 'combust',   name: '烈焰',     type: 'combust',   value: 3,  cost: 5, color: '#e67e22', desc: '造成6伤并灼烧3层' },
-  { id: 'curse',     name: '诅咒',     type: 'curse',     value: 5,  cost: 5, color: '#8e44ad', desc: '对手叠5层中毒' },
-  { id: 'freeze',    name: '冰封',     type: 'freeze',    value: 0,  cost: 4, color: '#00bcd4', desc: '冻结对手1回合' },
-  { id: 'doom',      name: '死亡宣告', type: 'doom',      value: 3,  cost: 5, color: '#607d8b', desc: '3回合后扣20血' },
-  { id: 'ward',      name: '护罩',     type: 'ward',      value: 0,  cost: 3, color: '#f1c40f', desc: '下回合免疫负面效果' },
-  { id: 'cleanse',   name: '净化',     type: 'cleanse',   value: 3,  cost: 4, color: '#ecf0f1', desc: '清除自身所有负面效果并恢复3点生命' },
-  { id: 'delay_dmg', name: '火灵', type: 'summon_fire', value: 5, cost: 4, color: '#e67e22', desc: '召唤火灵，在场3回合每回合对对手造成5/7/9点递增普通伤害' },
-  { id: 'blade',     name: '影刃',     type: 'equip',     value: 4,  cost: 3, color: '#95a5a6', desc: '装备3回合，每回合开始对对手造成4点普通伤害' },
-  { id: 'guard_shield', name: '守护者之盾', type: 'equip_shield', value: 5, cost: 3, color: '#2980b9', desc: '装备3回合，每回合开始获得5点护盾' },
-  { id: 'treasure',  name: '宝藏',     type: 'equip_mana', value: 1,  cost: 2, color: '#f1c40f', desc: '装备2回合，每回合开始水晶+1' },
-  { id: 'laststand', name: '背水一战', type: 'cond_damage', value: 15, cost: 2, color: '#c0392b', desc: '自己HP≤40时造成15点普通伤害，否则5点' },
-  { id: 'execute',  name: '斩杀',     type: 'cond_kill',  value: 0,  cost: 4, color: '#c0392b', desc: '对手HP≤15直接斩杀，否则造成8点普通伤害' },
-  { id: 'overload',  name: '过载',     type: 'cond_draw',  value: 3,  cost: 1, color: '#1abc9c', desc: '手牌≤2张时抽3张，否则抽1张' },
-  { id: 'holylight', name: '圣光',     type: 'cleanse_lite', value: 0, cost: 2, color: '#ecf0f1', desc: '清除对面所有随从（含壁垒守卫）' },
-  { id: 'purge',     name: '净化火焰', type: 'cleanse_burn', value: 8, cost: 5, color: '#e74c3c', desc: '清自身负面+回8血+抽1张，并清除对面所有随从' },
-  { id: 'spider',    name: '蜘蛛女皇', type: 'summon_spider', value: 2, cost: 4, color: '#27ae60', desc: '召唤蜘蛛女皇，在场3回合每回合给对手叠2层中毒' },
-  { id: 'guardian',  name: '壁垒守卫', type: 'summon_guard',  value: 0,  cost: 3, color: '#3498db', desc: '召唤壁垒守卫，在场3回合期间受到的普通伤害减半' }
+  { id: 'fireball',  name: '火球术',   type: 'damage',    value: 6,  cost: 1, color: '#e74c3c', rarity: 'common', desc: '造成6点伤害' },
+  { id: 'heal',      name: '治疗术',   type: 'heal',      value: 6,  cost: 1, color: '#2ecc71', rarity: 'common', desc: '恢复6点生命' },
+  { id: 'shield',    name: '圣盾',     type: 'shield',    value: 6,  cost: 1, color: '#3498db', rarity: 'common', desc: '获得6点护盾' },
+  { id: 'thunder',   name: '雷击',     type: 'damage',    value: 20, cost: 6, color: '#9b59b6', rarity: 'uncommon', desc: '造成20点伤害' },
+  { id: 'vampiric',  name: '吸血',     type: 'vampiric',  value: 12, cost: 5, color: '#c0392b', rarity: 'uncommon', desc: '造成12伤并回6血' },
+  { id: 'chaos',     name: '混沌',     type: 'chaos',     value: 6,  cost: 2, color: '#f39c12', rarity: 'common', desc: '随机效果(伤害、治疗、护盾、净化、中毒、灼烧、冰冻)' },
+  { id: 'poison',    name: '毒雾',     type: 'poison',    value: 8,  cost: 3, color: '#27ae60', rarity: 'common', desc: '造成8伤并中毒3层' },
+  { id: 'barrier',   name: '铁壁',     type: 'shield',    value: 20, cost: 6, color: '#2980b9', rarity: 'uncommon', desc: '获得20点护盾' },
+  { id: 'arcane',    name: '奥术智慧', type: 'draw',      value: 2,  cost: 3, color: '#1abc9c', rarity: 'common', desc: '抽2张牌' },
+  { id: 'sprint',    name: '疾风斩',   type: 'draw_dmg',  value: 8,  cost: 3, color: '#e67e22', rarity: 'common', desc: '造成8伤并抽1' },
+  { id: 'sacrifice', name: '献祭',     type: 'sacrifice', value: 15, cost: 4, color: '#8e44ad', rarity: 'uncommon', desc: '自扣8血，对手扣15真伤' },
+  { id: 'suicide',   name: '自爆卡车', type: 'suicide',   value: 25, cost: 7, color: '#c0392b', rarity: 'uncommon', desc: '双方各受25真伤' },
+  { id: 'block',     name: '格挡',     type: 'block',     value: 0,  cost: 4, color: '#f1c40f', rarity: 'uncommon', desc: '免疫下回合所有伤害' },
+  { id: 'steal',     name: '顺手牵羊', type: 'steal',     value: 0,  cost: 2, color: '#2c3e50', rarity: 'common', desc: '随机偷对手1张牌' },
+  { id: 'combust',   name: '烈焰',     type: 'combust',   value: 3,  cost: 5, color: '#e67e22', rarity: 'uncommon', desc: '造成6伤并灼烧3层' },
+  { id: 'curse',     name: '诅咒',     type: 'curse',     value: 5,  cost: 5, color: '#8e44ad', rarity: 'uncommon', desc: '对手叠5层中毒' },
+  { id: 'freeze',    name: '冰封',     type: 'freeze',    value: 0,  cost: 4, color: '#00bcd4', rarity: 'uncommon', desc: '冻结对手1回合' },
+  { id: 'doom',      name: '死亡宣告', type: 'doom',      value: 3,  cost: 5, color: '#607d8b', rarity: 'uncommon', desc: '3回合后扣20血' },
+  { id: 'ward',      name: '护罩',     type: 'ward',      value: 0,  cost: 3, color: '#f1c40f', rarity: 'common', desc: '下回合免疫负面效果' },
+  { id: 'cleanse',   name: '净化',     type: 'cleanse',   value: 3,  cost: 4, color: '#ecf0f1', rarity: 'common', desc: '清除自身所有负面效果并恢复3点生命' },
+  { id: 'delay_dmg', name: '火灵', type: 'summon_fire', value: 5, cost: 4, color: '#e67e22', rarity: 'rare', desc: '召唤火灵，在场3回合每回合对对手造成5/7/9点递增普通伤害' },
+  { id: 'blade',     name: '影刃',     type: 'equip',     value: 4,  cost: 3, color: '#95a5a6', rarity: 'uncommon', desc: '装备3回合，每回合开始对对手造成4点普通伤害' },
+  { id: 'guard_shield', name: '守护者之盾', type: 'equip_shield', value: 5, cost: 3, color: '#2980b9', rarity: 'uncommon', desc: '装备3回合，每回合开始获得5点护盾' },
+  { id: 'treasure',  name: '宝藏',     type: 'equip_mana', value: 1,  cost: 2, color: '#f1c40f', rarity: 'uncommon', desc: '装备2回合，每回合开始水晶+1' },
+  { id: 'laststand', name: '背水一战', type: 'cond_damage', value: 15, cost: 2, color: '#c0392b', rarity: 'uncommon', desc: '自己HP≤40时造成15点普通伤害，否则5点' },
+  { id: 'execute',  name: '斩杀',     type: 'cond_kill',  value: 0,  cost: 4, color: '#c0392b', rarity: 'uncommon', desc: '对手HP≤15直接斩杀，否则造成8点普通伤害' },
+  { id: 'overload',  name: '过载',     type: 'cond_draw',  value: 3,  cost: 1, color: '#1abc9c', rarity: 'common', desc: '手牌≤2张时抽3张，否则抽1张' },
+  { id: 'holylight', name: '圣光',     type: 'cleanse_lite', value: 0, cost: 2, color: '#ecf0f1', rarity: 'rare', desc: '清除对面所有随从（含壁垒守卫）' },
+  { id: 'purge',     name: '净化火焰', type: 'cleanse_burn', value: 8, cost: 5, color: '#e74c3c', rarity: 'rare', desc: '清自身负面+回8血+抽1张，并清除对面所有随从' },
+  { id: 'spider',    name: '蜘蛛女皇', type: 'summon_spider', value: 2, cost: 4, color: '#27ae60', rarity: 'rare', desc: '召唤蜘蛛女皇，在场3回合每回合给对手叠2层中毒' },
+  { id: 'guardian',  name: '壁垒守卫', type: 'summon_guard',  value: 0,  cost: 3, color: '#3498db', rarity: 'rare', desc: '召唤壁垒守卫，在场3回合期间受到的普通伤害减半' }
 ];
 
 const MAX_MANA = 10;
 const START_HAND = 4;
 const TURN_DRAW = 3;
+
+/* 分层抽牌池：每抽一张先按权重选稀有度层，再在层内按费用加权抽 */
+const RARITY_WEIGHTS = { common: 60, uncommon: 30, rare: 10 };
 
 const COIN_TEMPLATE = {
   id: 'coin', name: '水晶硬币', type: 'coin', value: 1, cost: 0,
@@ -53,7 +56,7 @@ const CHARACTERS = [
     active:  { name: '圣盾', desc: '消耗2水晶，获得10点护盾', cost: 2 } },
   { id: 'warlock',   emoji: '💀', name: '术士', type: '资源',
     passive: { name: '血契', desc: '打出负面效果牌(中毒/灼烧/诅咒/冰封/死亡宣告)后抽1张' },
-    active:  { name: '诅咒', desc: '消耗3水晶，弃1张手牌，对手叠4层中毒并锁定负面(下回合无法净化)', cost: 3 } },
+    active:  { name: '诅咒', desc: '消耗3水晶，弃1张手牌，对手叠5层中毒', cost: 3 } },
   { id: 'gambler',   emoji: '🎲', name: '赌徒', type: '随机',
     passive: { name: '双骰', desc: '混沌卡牌效果触发两次' },
     active:  { name: '换牌', desc: '消耗2水晶，弃全部手牌，重抽等量张', cost: 2 } },
@@ -81,7 +84,6 @@ class CardGameEngine {
       skillUsedThisTurn: false,
       berserkerDoubleDamage: false,
       cardCostPenalty: 0,
-      negativeLocked: 0,
       delayDamages: [],
       equipBladeTurn: 0,
       equipShieldTurn: 0,
@@ -169,10 +171,9 @@ class CardGameEngine {
     if (card.type === 'doom') log += '（死亡倒计时3回合）';
     const chaosCleanseCleared = (Array.isArray(extra.chaosEffect) ? extra.chaosEffect.includes('cleanse') : extra.chaosEffect === 'cleanse') && extra.cleansed;
     if (chaosCleanseCleared) log += '（清除所有负面）';
-    if (card.type === 'cleanse') log += extra.locked ? '（负面被锁定，净化无效！）' : (extra.cleansed ? '（清除所有负面）' : '（无负面可清）');
+    if (card.type === 'cleanse') log += extra.cleansed ? '（清除所有负面）' : '（无负面可清）';
     if (card.type === 'cleanse_lite') log += extra.cleansed ? '（清除对面所有随从）' : '（对面无随从）';
     if (card.type === 'cleanse_burn') log += extra.healBlocked ? '（清负面，灼烧中回血无效，抽1张）' : '（清负面，回8血，抽1张）';
-    if (card.type === 'cleanse_burn' && extra.locked) log += '（负面被锁定，清负面无效！）';
     if (card.type === 'cleanse_burn' && extra.purged) log += '，焚毁对面随从';
     if (card.type === 'block') log += '（下回合免疫所有伤害）';
     if (card.type === 'ward') log += '（下回合免疫负面效果）';
@@ -231,14 +232,33 @@ class CardGameEngine {
     }
   }
 
+  // 分层抽牌：先按 RARITY_WEIGHTS 选稀有度层，再在层内按费用加权抽
   _weightedPick(cards) {
-    const total = cards.reduce((s, c) => s + Math.max(1, 14 - c.cost), 0);
-    let r = Math.random() * total;
+    // 按稀有度分组
+    const byRarity = { common: [], uncommon: [], rare: [] };
     for (const c of cards) {
+      const r = c.rarity || 'common';
+      if (byRarity[r]) byRarity[r].push(c); else byRarity.common.push(c);
+    }
+    // 过滤掉空层，按权重选层
+    const layers = Object.keys(RARITY_WEIGHTS).filter(r => byRarity[r] && byRarity[r].length > 0);
+    if (layers.length === 0) return cards[0];
+    const wTotal = layers.reduce((s, r) => s + RARITY_WEIGHTS[r], 0);
+    let wr = Math.random() * wTotal;
+    let chosen = layers[0];
+    for (const r of layers) {
+      wr -= RARITY_WEIGHTS[r];
+      if (wr < 0) { chosen = r; break; }
+    }
+    const pool = byRarity[chosen];
+    // 层内按费用加权（低费权重高）
+    const total = pool.reduce((s, c) => s + Math.max(1, 14 - c.cost), 0);
+    let r = Math.random() * total;
+    for (const c of pool) {
       r -= Math.max(1, 14 - c.cost);
       if (r < 0) return c;
     }
-    return cards[cards.length - 1];
+    return pool[pool.length - 1];
   }
 
   _giveCoin(player) {
@@ -313,7 +333,6 @@ class CardGameEngine {
       ward:     () => { user.negImmune = true; },
       steal:    () => { if (target.hand.length > 0) { const s = target.hand.splice(Math.floor(Math.random() * target.hand.length), 1)[0]; user.hand.push(s); extra = { stolenName: s.name }; } else extra = { stolenFail: true }; },
       cleanse:  () => {
-        if (user.negativeLocked) { extra = { locked: true }; return; } // 负面被锁定，净化无效
         const n = user.poison > 0 || user.burn > 0 || user.frozen || user.doom > 0 || user.doomStacks > 0;
         const b = user.burn > 0; user.poison = 0; user.burn = 0; user.frozen = false; user.doom = 0; user.doomStacks = 0; user.burnTurn = 0;
         if (b) extra = { healBlocked: true }; else user.hp = Math.min(user.maxHp, user.hp + 3);
@@ -331,10 +350,9 @@ class CardGameEngine {
       },
       /* 净化火焰：清自身负面+回8血+抽1，并清除对面所有随从（含壁垒） */
       cleanse_burn: () => {
-        const locked = !!user.negativeLocked;
-        const n = !locked && (user.poison > 0 || user.burn > 0 || user.frozen || user.doom > 0 || user.doomStacks > 0);
+        const n = user.poison > 0 || user.burn > 0 || user.frozen || user.doom > 0 || user.doomStacks > 0;
         const b = user.burn > 0;
-        if (!locked) { user.poison = 0; user.burn = 0; user.frozen = false; user.doom = 0; user.doomStacks = 0; user.burnTurn = 0; }
+        user.poison = 0; user.burn = 0; user.frozen = false; user.doom = 0; user.doomStacks = 0; user.burnTurn = 0;
         if (!b) user.hp = Math.min(user.maxHp, user.hp + 8); else extra = { healBlocked: true };
         this._drawCards(user, 1);
         const cleared = target.summons && target.summons.length > 0;
@@ -343,7 +361,7 @@ class CardGameEngine {
           this.logs.push(`${target.name} 的${names.join('、')}被净化火焰焚毁`);
           target.summons = [];
         }
-        extra = { ...extra, cleansed: n, purged: cleared, locked };
+        extra = { ...extra, cleansed: n, purged: cleared };
       },
       coin:     () => { user.mana += 1; },
       /* ===== 随从(召唤物) ===== */
@@ -512,9 +530,8 @@ class CardGameEngine {
         if (target.negImmune) {
           this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶,被护罩抵挡)`);
         } else {
-          target.poison += 4;
-          target.negativeLocked = 1; // 锁定负面：下回合无法净化
-          this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶)对手叠4层中毒并锁定负面`);
+          target.poison += 5;
+          this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶)对手叠5层中毒`);
         }
         break;
       }
@@ -544,7 +561,6 @@ class CardGameEngine {
     this._applyStatusEffects(pp);
     if (pp.frozen) { pp.frozen = false; this.logs.push(`${pp.name} 从冰冻中恢复`); }
     if (pp.cardCostPenalty) { pp.cardCostPenalty = 0; } // 软控仅持续一个回合
-    if (pp.negativeLocked) { pp.negativeLocked = 0; } // 负面锁定仅持续一个回合
     this.turn = (this.turn + 1) % 2;
     this._beginTurn(this.turn);
     this._broadcastAll();
@@ -585,7 +601,6 @@ class CardGameEngine {
           immune: !!p.immune, negImmune: !!p.negImmune, handSize: this._realHandCount(p),
           isCurrent: i === this.turn, disconnected: !!p.disconnected,
           cardCostPenalty: p.cardCostPenalty || 0,
-          negativeLocked: !!p.negativeLocked,
           delayDamages: (p.delayDamages || []).map(d => ({ amount: d.amount, turns: d.turns })),
           equipBladeTurn: p.equipBladeTurn || 0,
           equipShieldTurn: p.equipShieldTurn || 0,
