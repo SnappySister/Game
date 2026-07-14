@@ -51,6 +51,13 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
 }
 #login-btn:hover { background: #c0392b; }
 
+.version-tag {
+  margin-top: 14px;
+  font-size: 12px;
+  color: #7f8c8d;
+  text-align: center;
+}
+
 /* ===== 大厅 ===== */
 #view-lobby { padding: 0; }
 .lobby-header {

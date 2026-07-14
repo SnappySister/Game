@@ -6,6 +6,7 @@ const CardGameEngine = require('./games/card-game');
 const TexasHoldemEngine = require('./games/texas-holdem');
 const SichuanMahjongEngine = require('./games/sichuan-mahjong');
 const MonopolyEngine = require('./games/monopoly');
+const { VERSION } = require('./public/version');
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3456;
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript' };
@@ -68,7 +69,16 @@ const server = http.createServer((req, res) => {
   const p = path.join(__dirname, 'public', file);
   fs.readFile(p, (err, data) => {
     if (err) { res.writeHead(404); res.end(); }
-    else { res.writeHead(200, { 'Content-Type': MIME[path.extname(p)] || 'text/plain' }); res.end(data); }
+    else {
+      // 禁止缓存：确保玩家始终拿到最新前端(版本号校验才有效)
+      res.writeHead(200, {
+        'Content-Type': MIME[path.extname(p)] || 'text/plain',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      });
+      res.end(data);
+    }
   });
 });
 
@@ -166,7 +176,7 @@ function addChat(scope, roomId, name, text) {
 
 wss.on('connection', (ws) => {
   log.info(`WebSocket 连接建立，当前在线 ${users.size + 1}`);
-  send(ws, { event: 'connected' });
+  send(ws, { event: 'connected', serverVersion: VERSION });
 
   ws.on('message', (raw) => {
     let msg;
@@ -175,6 +185,11 @@ wss.on('connection', (ws) => {
 
     /* ---------- 登录 ---------- */
     if (msg.type === 'setName') {
+      // 版本校验：客户端版本与服务端不一致时记录日志并提示更新（不强制断开，避免误伤）
+      if (msg.clientVersion && msg.clientVersion !== VERSION) {
+        log.warn(`版本不匹配: 客户端=${msg.clientVersion} 服务端=${VERSION} 用户=${(msg.name||'').trim()}`);
+        send(ws, { event: 'versionMismatch', client: msg.clientVersion, server: VERSION });
+      }
       const name = (msg.name || '').trim().slice(0, 12) || '匿名';
       const id = nextUserId++;
       users.set(ws, { id, name, state: 'lobby', roomId: null, gameIndex: -1 });
@@ -658,4 +673,4 @@ function leaveRoomInternal(userId) {
   if (userObj) { userObj.roomId = null; userObj.gameIndex = -1; }
 }
 
-server.listen(PORT, () => console.log('游戏大厅运行在 http://localhost:' + PORT));
+server.listen(PORT, () => console.log(`游戏大厅 v${VERSION} 运行在 http://localhost:${PORT}`));

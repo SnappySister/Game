@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>游戏大厅</title>
 <link rel="stylesheet" href="style.css">
+<script src="version.js"></script>
 </head>
 <body>
 <div id="app">
@@ -15,6 +16,7 @@
     <h1>游戏大厅</h1>
     <input id="nickname-input" type="text" placeholder="输入昵称 (最多12字)" maxlength="12">
     <button id="login-btn">进入大厅</button>
+    <div id="version-tag" class="version-tag">v1.0.0</div>
   </div>
 </div>
 
@@ -767,7 +769,19 @@ function openGameRule(gameType) {
 }
 
 /* ==================== 消息处理 ==================== */
+let serverVersion = '';
 function handleMessage(d) {
+  if (d.event === 'connected') {
+    serverVersion = d.serverVersion || '';
+    // 客户端与服务端版本不一致时提示刷新（通常因浏览器缓存了旧前端）
+    if (serverVersion && window.GAME_VERSION && serverVersion !== window.GAME_VERSION) {
+      console.warn(`版本不一致: 客户端=${window.GAME_VERSION} 服务端=${serverVersion}`);
+      alert(`检测到新版本 v${serverVersion}，请按 Ctrl+F5 强制刷新页面以获取最新内容。`);
+    }
+  }
+  if (d.event === 'versionMismatch') {
+    alert(`游戏已更新到 v${d.server}，你当前是 v${d.client}。\n请按 Ctrl+F5 强制刷新页面后再进入。`);
+  }
   if (d.event === 'named') {
     myName = d.name;
     showView('#view-lobby');
@@ -1127,10 +1141,12 @@ function addChatMessage(d) {
 }
 
 /* ==================== 登录 ==================== */
+// 登录页填充版本号
+$('#version-tag').textContent = 'v' + (window.GAME_VERSION || '1.0.0');
 $('#login-btn').onclick = () => {
   const name = $('#nickname-input').value.trim();
   if (!name) { alert('请输入昵称'); return; }
-  send({ type: 'setName', name });
+  send({ type: 'setName', name, clientVersion: window.GAME_VERSION || '1.0.0' });
 };
 $('#nickname-input').addEventListener('keypress', e => { if (e.key === 'Enter') $('#login-btn').click(); });
 
