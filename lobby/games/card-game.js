@@ -16,14 +16,13 @@ class CardGameEngine {
       index: i,
       hp: CONFIG.START_HP, maxHp: CONFIG.START_HP, shield: 0,
       mana: 0, maxMana: 0,
-      poison: 0, burn: 0, frozen: false, doom: 0, doomStacks: 0, burnTurn: 0,
+      poison: 0, burn: 0, frozen: false, burnTurn: 0,
       immune: false, negImmune: false,
       hand: [],
       character: p.character || null,
       skillUsedThisTurn: false,
       berserkerDoubleDamage: false,
       cardCostPenalty: 0,
-      delayDamages: [],
       equipBladeTurn: 0,
       equipBladeDmg: 0,
       equipBurnStacks: 0,
@@ -44,7 +43,7 @@ class CardGameEngine {
     this.turn = Math.random() < 0.5 ? 0 : 1;
     this.players.forEach(p => {
       p.hp = CONFIG.START_HP; p.maxHp = CONFIG.START_HP; p.shield = 0;
-      p.poison = 0; p.burn = 0; p.frozen = false; p.doom = 0; p.doomStacks = 0;
+      p.poison = 0; p.burn = 0; p.frozen = false;
       p.burnTurn = 0; p.negImmune = false;
       p.mana = 0; p.maxMana = 0; p.immune = false;
       p.hand = [];
@@ -85,6 +84,7 @@ class CardGameEngine {
     const idx = user.hand.findIndex(c => c.uuid === msg.uuid);
     if (idx === -1) return;
     const card = user.hand[idx];
+    const v = card.value;
     const effectiveCost = card.cost + (user.cardCostPenalty || 0);
     if (user.mana < effectiveCost) return;
     if (user.frozen && card.type !== 'cleanse' && card.type !== 'cleanse_burn') {
@@ -123,7 +123,6 @@ class CardGameEngine {
     if (card.type === 'block') log += '（下回合免疫所有伤害）';
     if (card.type === 'ward') log += '（下回合免疫负面效果）';
     if (card.type === 'coin') log += '（水晶+1）';
-    if (card.type === 'delay_damage') log += extra.negBlocked ? '（被护罩抵挡）' : '（3回合后爆发20伤）';
     if (card.type === 'summon_fire') log += '（召唤火灵，每回合递增伤害）';
     if (card.type === 'summon_spider') log += '（召唤蜘蛛女皇，每回合叠毒）';
     if (card.type === 'summon_guard') log += '（召唤壁垒守卫，3回合普通伤害减半）';
@@ -140,7 +139,6 @@ class CardGameEngine {
     if (card.type === 'meteor') log += ` → 造成${extra.meteorDmg}真伤${user.burn === 0 ? '并回'+(card.heal||10)+'血' : '（灼烧中回血无效）'}`;
     if (card.type === 'cond_neg') log += extra.judged ? ` → 对手有负面，造成${v + (card.bonusDmg||8)}伤` : ` → 造成${v}伤`;
     if (card.type === 'freeze_dmg') log += ` → 造成${v}伤并冻结对手${extra.negBlocked ? '（被护罩抵挡冻结）' : ''}`;
-    if (card.type === 'ice_shield') log += ` → 获得${v}护盾并冻结对手${extra.negBlocked ? '（冻结被护罩抵挡）' : ''}`;
     if (card.type === 'equip_burn') log += '（装备烈焰之杖，每回合6伤+灼烧1层）';
     if (extra.summonHealed) log += `（对手有随从，回${extra.summonHealed}血）`;
     if (extra.healBlocked) log += '（灼烧中，回血无效）';
@@ -279,8 +277,8 @@ class CardGameEngine {
           if (pick === 'heal') { if (user.burn > 0) extra = { ...extra, healBlocked: true }; else user.hp = Math.min(user.maxHp, user.hp + v); }
           if (pick === 'shield') user.shield += v;
           if (pick === 'cleanse') {
-            const h = user.poison > 0 || user.burn > 0 || user.frozen || user.doom > 0 || user.doomStacks > 0;
-            const b = user.burn > 0; user.poison = 0; user.burn = 0; user.frozen = false; user.doom = 0; user.doomStacks = 0; user.burnTurn = 0;
+            const h = user.poison > 0 || user.burn > 0 || user.frozen;
+            const b = user.burn > 0; user.poison = 0; user.burn = 0; user.frozen = false; user.burnTurn = 0;
             if (!b) user.hp = Math.min(user.maxHp, user.hp + 3); extra = { ...extra, cleansed: h };
           }
           if (pick === 'poison') { if (target.negImmune) extra = { ...extra, negBlocked: true }; else target.poison += 3; }
@@ -296,8 +294,8 @@ class CardGameEngine {
       ward:     () => { user.negImmune = true; },
       steal:    () => { if (target.hand.length > 0) { const s = target.hand.splice(Math.floor(Math.random() * target.hand.length), 1)[0]; user.hand.push(s); extra = { stolenName: s.name }; } else extra = { stolenFail: true }; },
       cleanse:  () => {
-        const n = user.poison > 0 || user.burn > 0 || user.frozen || user.doom > 0 || user.doomStacks > 0;
-        const b = user.burn > 0; user.poison = 0; user.burn = 0; user.frozen = false; user.doom = 0; user.doomStacks = 0; user.burnTurn = 0;
+        const n = user.poison > 0 || user.burn > 0 || user.frozen;
+        const b = user.burn > 0; user.poison = 0; user.burn = 0; user.frozen = false; user.burnTurn = 0;
         if (b) extra = { healBlocked: true }; else user.hp = Math.min(user.maxHp, user.hp + 3);
         extra = { ...extra, cleansed: n };
       },
@@ -313,9 +311,9 @@ class CardGameEngine {
       },
       /* 净化火焰：清自身负面+回8血+抽1，并清除对面所有随从（含壁垒） */
       cleanse_burn: () => {
-        const n = user.poison > 0 || user.burn > 0 || user.frozen || user.doom > 0 || user.doomStacks > 0;
+        const n = user.poison > 0 || user.burn > 0 || user.frozen;
         const b = user.burn > 0;
-        user.poison = 0; user.burn = 0; user.frozen = false; user.doom = 0; user.doomStacks = 0; user.burnTurn = 0;
+        user.poison = 0; user.burn = 0; user.frozen = false; user.burnTurn = 0;
         if (!b) user.hp = Math.min(user.maxHp, user.hp + v); else extra = { healBlocked: true };
         this._drawCards(user, card.drawCount || 1);
         const cleared = target.summons && target.summons.length > 0;
@@ -365,7 +363,7 @@ class CardGameEngine {
       // 神圣审判：对手有负面时+bonusDmg
       cond_neg: () => {
         let dmg = v;
-        const hasNeg = target.poison > 0 || target.burn > 0 || target.frozen || target.doom > 0;
+        const hasNeg = target.poison > 0 || target.burn > 0 || target.frozen;
         if (hasNeg) dmg += (card.bonusDmg || 8);
         this._dealDamage(user, target, dmg);
         extra = { ...extra, judged: hasNeg };
@@ -457,7 +455,7 @@ class CardGameEngine {
 
   // 出牌后被动钩子（在 _resolveCard 之后调用）
   _onCardResolved(user, target, card) {
-    const NEGATIVE_TYPES = ['poison', 'combust', 'curse', 'freeze', 'doom'];
+    const NEGATIVE_TYPES = ['poison', 'combust', 'curse', 'freeze'];
     if (user.character === 'warlock' && NEGATIVE_TYPES.includes(card.type)) {
       this._drawCards(user, 1);
       this.logs.push(`${user.name} 触发【血契】抽1张牌`);
@@ -487,7 +485,6 @@ class CardGameEngine {
       let blocked = [];
       if (pp.poison && pp.hp > 0) blocked.push('中毒');
       if (pp.burn && pp.hp > 0)   { blocked.push('灼烧'); pp.burnTurn--; if (pp.burnTurn <= 0) pp.burn = 0; }
-      if (pp.doom > 0)            { blocked.push('死亡宣告'); pp.doom--; if (pp.doom === 0) pp.doomStacks = 0; }
       if (blocked.length > 0) { this.logs.push(`${pp.name} 的格挡免疫了${blocked.join('、')}伤害`); return true; }
       return false;
     }
@@ -497,11 +494,6 @@ class CardGameEngine {
       pp.burnTurn--;
       if (pp.burnTurn <= 0) { pp.burn = 0; parts.push(`灼烧熄灭`); }
       else parts.push(`灼烧${pp.burn}(${pp.burnTurn})`);
-    }
-    if (pp.doom > 0) {
-      pp.doom--;
-      if (pp.doom === 0) { const dmg = CONFIG.DOOM_DAMAGE_PER_STACK * (pp.doomStacks || 1); pp.hp = Math.max(0, pp.hp - this._effectiveDamage(pp, dmg)); parts.push(`死亡倒计时爆发(${dmg})`); pp.doomStacks = 0; }
-      else parts.push(`死亡倒计时${pp.doom}` + (pp.doomStacks > 1 ? `×${pp.doomStacks}` : ''));
     }
     if (parts.length > 0) { this.logs.push(`${pp.name} 受到 ${parts.join(' + ')}`); return true; }
     return false;
@@ -722,18 +714,18 @@ class CardGameEngine {
           name: p.name, hp: p.hp, maxHp: p.maxHp, shield: p.shield,
           mana: p.mana, maxMana: p.maxMana,
           poison: p.poison || 0, burn: p.burn || 0, burnTurn: p.burnTurn || 0,
-          frozen: !!p.frozen, doom: p.doom || 0, doomStacks: p.doomStacks || 0,
+          frozen: !!p.frozen,
           immune: !!p.immune, negImmune: !!p.negImmune, handSize: this._realHandCount(p),
           isCurrent: i === this.turn, disconnected: !!p.disconnected,
           cardCostPenalty: p.cardCostPenalty || 0,
-          delayDamages: (p.delayDamages || []).map(d => ({ amount: d.amount, turns: d.turns })),
           equipBladeTurn: p.equipBladeTurn || 0,
           equipShieldTurn: p.equipShieldTurn || 0,
           equipManaTurn: p.equipManaTurn || 0,
           summons: (p.summons || []).map(s => ({
             kind: s.kind,
             turns: s.turns === undefined ? -1 : s.turns,
-            dmg: s.dmg === undefined ? 0 : s.dmg
+            dmg: s.dmg === undefined ? 0 : s.dmg,
+            stacks: s.stacks === undefined ? 0 : s.stacks
           })),
           character: p.character,
           characterEmoji: ch ? ch.emoji : '',

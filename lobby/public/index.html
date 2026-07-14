@@ -93,7 +93,6 @@
         盾 <span class="shield-val">0</span> |
         毒 <span class="poison-val">0</span> |
         烧 <span class="burn-val">0</span>
-        <span class="doom-tag" style="display:none"> 倒数<span class="doom-val">0</span><span class="doom-stacks"></span></span>
         <span class="frozen-tag" style="display:none"> ❄冻</span>
         <span class="immune-tag" style="display:none"> 🛡免疫</span>
         <span class="negimmune-tag" style="display:none"> 🛡护</span>
@@ -118,7 +117,6 @@
         盾 <span class="shield-val">0</span> |
         毒 <span class="poison-val">0</span> |
         烧 <span class="burn-val">0</span>
-        <span class="doom-tag" style="display:none"> 倒数<span class="doom-val">0</span><span class="doom-stacks"></span></span>
         <span class="frozen-tag" style="display:none"> ❄冻</span>
         <span class="immune-tag" style="display:none"> 🛡免疫</span>
         <span class="negimmune-tag" style="display:none"> 🛡护</span>
@@ -152,7 +150,7 @@
       <p><b style="color:#c0392b">⚔ 真实伤害</b>：无视护盾，直接扣除HP。仅【献祭】和【自爆卡车】属于真实伤害。但真实伤害仍会被<b>格挡</b>免疫。</p>
       <br>
       <p><b>防御机制：</b></p>
-      <p><b style="color:#3498db">🛡 护盾</b>：获得护盾值，抵挡普通伤害（包括卡牌伤害、中毒、灼烧、死亡宣告爆发）。真实伤害无视护盾。</p>
+      <p><b style="color:#3498db">🛡 护盾</b>：获得护盾值，抵挡普通伤害（包括卡牌伤害、中毒、灼烧）。真实伤害无视护盾。</p>
       <p><b style="color:#f1c40f">🛡 格挡</b>：下回合完全免疫<b>所有伤害</b>（包括卡牌伤害、负面效果伤害、真实伤害），护盾不消耗。持续一回合后消失。</p>
       <p><b style="color:#f1c40f">🛡 护罩</b>：下回合免疫<b>所有负面效果</b>（中毒、灼烧、冰冻）。负面效果直接被免疫，不扣护盾也不扣HP。持续一回合后消失。</p>
       <br>
@@ -224,7 +222,7 @@
       <p><b>主动技能机制：</b>主动技能消耗一定<b>水晶</b>，在自己的回合可释放，<b>每回合最多1次</b>。水晶不足或本回合已用过则无法释放。下回合开始自动恢复可用。</p>
       <p><b style="color:#9b59b6">😈 狂战士（输出）</b>　被动【嗜血】：HP≤40%时，所有普通伤害+3。　主动【血怒】3💧：扣自己3血，本回合普通伤害翻倍。</p>
       <p><b style="color:#9b59b6">🛡 圣骑士（防御）</b>　被动【圣愈】：每回合开始（灼烧时除外）回2血，且已有护盾时额外+3护盾（叠盾流）。　主动【圣盾】2💧：获得10点护盾。</p>
-      <p><b style="color:#9b59b6">💀 术士（资源）</b>　被动【血契】：打出负面效果牌（毒雾/烈焰/诅咒/冰封/死亡宣告）后抽1张。　主动【诅咒】3💧：弃1张手牌，对手叠7层中毒并自己回5血。</p>
+      <p><b style="color:#9b59b6">💀 术士（资源）</b>　被动【血契】：打出负面效果牌（毒雾/烈焰/诅咒/冰封）后抽1张。　主动【诅咒】3💧：弃1张手牌，对手叠7层中毒并自己回5血。</p>
       <p><b style="color:#9b59b6">🎲 赌徒（随机）</b>　被动【双骰】：随机卡牌（混沌/能量爆发/命运契约/幻象术/召唤仪式）触发两次，但有20%概率自己得一个负面效果（中毒/灼烧/冻结）。　主动【换牌】2💧：弃全部手牌，重抽等量张。</p>
       <p><b style="color:#9b59b6">❄ 寒冰法师（控制）</b>　被动【霜寒】：对手冻结期间，你对其造成的所有普通伤害+3（配合冰封/极地风暴，冻住后暴力输出）。　主动【极地风暴】3💧：对手本回合所有卡牌费用+2（软控，对手仍可出牌，仅拖慢节奏）。</p>
       <p><b style="color:#9b59b6">🧙 大法师（资源）</b>　被动【博学】：每回合抽牌数+1（共4张）。　主动【奥术涌动】2💧：抽2张牌并随机弃掉对手2张手牌（资源差，有场面影响）。</p>
@@ -1281,12 +1279,6 @@ function updateArea(id, p) {
   if (immuneTag) immuneTag.style.display = p.immune ? 'inline' : 'none';
   const frozenTag = el.querySelector('.frozen-tag');
   if (frozenTag) frozenTag.style.display = p.frozen ? 'inline' : 'none';
-  const doomTag = el.querySelector('.doom-tag');
-  if (doomTag) doomTag.style.display = p.doom > 0 || p.doomStacks > 0 ? 'inline' : 'none';
-  const doomVal = el.querySelector('.doom-val');
-  if (doomVal) doomVal.textContent = p.doom > 0 ? p.doom : '0';
-  const doomStacks = el.querySelector('.doom-stacks');
-  if (doomStacks) doomStacks.textContent = p.doomStacks > 1 ? '×' + p.doomStacks : '';
   const negImmuneTag = el.querySelector('.negimmune-tag');
   if (negImmuneTag) negImmuneTag.style.display = p.negImmune ? 'inline' : 'none';
   // 装备显示
@@ -1307,6 +1299,7 @@ function updateArea(id, p) {
       const parts = p.summons.map(s => {
         const lbl = labels[s.kind] || s.kind;
         if (s.kind === 'firesprite') return `${lbl}${s.dmg}(${s.turns})`;
+        if (s.kind === 'spider') return `${lbl}毒${s.stacks || 0}(${s.turns})`;
         if (s.turns >= 0) return `${lbl}(${s.turns})`;
         return lbl;
       });
@@ -1413,11 +1406,11 @@ function typeLabel(t) {
     poison:'☠ 毒雾', chaos:'🎲 混沌', draw:'🃏 抽牌', draw_dmg:'⚔ 伤害+抽牌',
     sacrifice:'💀 献祭', suicide:'💥 自爆', block:'🛡 格挡',
     steal:'👋 偷牌', cleanse:'✨ 净化', coin:'💰 硬币',
-    combust:'🔥 灼烧', curse:'💀 诅咒', freeze:'❄ 冰封', doom:'⏳ 死亡宣告', ward:'🛡 护罩',
-    delay_damage:'🔥 烈焰风暴', equip:'🗡️ 装备', equip_shield:'🛡️ 装备', equip_mana:'💰 装备',
+    combust:'🔥 灼烧', curse:'💀 诅咒', freeze:'❄ 冰封', ward:'🛡 护罩',
+    equip:'🗡️ 装备', equip_shield:'🛡️ 装备', equip_mana:'💰 装备',
     cond_damage:'⚡ 背水', cond_kill:'🎯 斩杀', cond_draw:'🌀 过载',
     rand_mana:'💥 随机', rand_pact:'⚖️ 随机', rand_copy:'🪞 随机', rand_summon:'🎴 随机',
-    meteor:'☄️ 真伤', cond_neg:'⚖️ 审判', freeze_dmg:'❄ 冰冻', ice_shield:'🧊 冰盾', equip_burn:'🔥 装备',
+    meteor:'☄️ 真伤', cond_neg:'⚖️ 审判', freeze_dmg:'❄ 冰冻', equip_burn:'🔥 装备',
     summon_fire:'🔥 随从', summon_spider:'🕷️ 随从', summon_guard:'🛡️ 随从',
     cleanse_lite:'✨ 净化', cleanse_burn:'🔥 净化'
   };

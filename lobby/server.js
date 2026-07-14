@@ -598,7 +598,12 @@ wss.on('connection', (ws) => {
       const pIdx = room.players.indexOf(user.id);
       if (pIdx === -1) { log.warn(`${user.name} ${msg.type} 拒绝: 不是玩家 room=${room.id}`); return; }
       log.debug(`房间 ${room.id} 收到 ${msg.type} 消息: 玩家${pIdx}`);
-      room.gameInstance.handleMessage(pIdx, JSON.stringify(msg));
+      try {
+        room.gameInstance.handleMessage(pIdx, JSON.stringify(msg));
+      } catch (e) {
+        log.error(`房间 ${room.id} 处理 ${msg.type} 消息异常: ${e.stack || e.message}`);
+        send(ws, { event: 'error', msg: '处理消息时发生异常' });
+      }
       return;
     }
   });

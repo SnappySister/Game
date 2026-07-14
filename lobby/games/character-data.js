@@ -8,7 +8,7 @@ const CHARACTERS = [
     passive: { name: '圣愈', desc: '每回合开始(灼烧时除外)回2血，且已有护盾时额外+3护盾' },
     active:  { name: '圣盾', desc: '消耗2水晶，获得10点护盾', cost: 2 } },
   { id: 'warlock',   emoji: '💀', name: '术士', type: '资源',
-    passive: { name: '血契', desc: '打出负面效果牌(中毒/灼烧/诅咒/冰封/死亡宣告)后抽1张' },
+    passive: { name: '血契', desc: '打出负面效果牌(中毒/灼烧/诅咒/冰封)后抽1张' },
     active:  { name: '诅咒', desc: '消耗3水晶，弃1张手牌，对手叠7层中毒并自己回5血', cost: 3 } },
   { id: 'gambler',   emoji: '🎲', name: '赌徒', type: '随机',
     passive: { name: '双骰', desc: '随机卡牌触发两次，但有20%概率自己得一个负面效果' },

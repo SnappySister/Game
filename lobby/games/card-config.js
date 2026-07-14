@@ -26,6 +26,5 @@ module.exports = {
   TYCOON_DMG_PER_SAVE: 2,    // 财阀主动每点储蓄造成伤害
   UNDEAD_DMG: 6,             // 不死族主动亡者汲取伤害
   UNDEAD_HEAL: 8,            // 不死族主动亡者汲取回血
-  STATUS_DURATION: 3,         // 灼烧持续回合数
-  DOOM_DAMAGE_PER_STACK: 20    // 死亡倒计时每层爆发伤害（机制保留，无卡牌使用）
+  STATUS_DURATION: 3         // 灼烧持续回合数
 };
