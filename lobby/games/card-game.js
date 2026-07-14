@@ -584,8 +584,8 @@ class CardGameEngine {
     // 术士需先选牌，未传 uuid 不扣费（等待客户端选牌）
     if (user.character === 'warlock' && !msg.uuid) return;
 
-    // 扣除水晶
-    user.mana -= ch.active.cost;
+    // 扣除水晶（财阀【水晶爆发】改为消耗当前全部水晶，由其 case 自行处理，此处跳过固定扣费）
+    if (user.character !== 'tycoon') user.mana -= ch.active.cost;
 
     switch (user.character) {
       case 'berserker':
@@ -636,14 +636,14 @@ class CardGameEngine {
         }
         break;
       case 'tycoon': {
-        const saved = user.manaSavings || 0;
-        const dmg = saved * CONFIG.TYCOON_DMG_PER_SAVE;
+        const spent = user.mana || 0;
+        const dmg = spent * CONFIG.TYCOON_DMG_PER_SAVE;
         if (dmg > 0) {
           this._dealDamage(user, target, dmg);
-          this.logs.push(`${user.name} 释放【水晶爆发】(耗${ch.active.cost}水晶)，消耗${saved}储蓄造成${dmg}伤害`);
-          user.manaSavings = 0;
+          this.logs.push(`${user.name} 释放【水晶爆发】，消耗全部${spent}水晶造成${dmg}伤害`);
+          user.mana = 0;
         } else {
-          this.logs.push(`${user.name} 释放【水晶爆发】(耗${ch.active.cost}水晶，无储蓄可用)`);
+          this.logs.push(`${user.name} 释放【水晶爆发】（无水晶可用）`);
         }
         break;
       }

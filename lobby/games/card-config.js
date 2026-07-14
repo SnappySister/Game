@@ -23,7 +23,7 @@ module.exports = {
   GAMBLER_BACKFIRE: 0.2,      // 赌徒随机牌反噬概率(20%)
   GAMBLER_BACKFIRE_DMG: 5,    // 赌徒反噬无负面牌时的扣血量
   TYCOON_SAVE_THRESHOLD: 5,  // 财阀被动囤水晶阈值(剩余水晶≥5时存入储蓄)
-  TYCOON_DMG_PER_SAVE: 2,    // 财阀主动每点储蓄造成伤害
+  TYCOON_DMG_PER_SAVE: 2,    // 财阀主动每点水晶造成伤害(消耗当前全部水晶)
   UNDEAD_DMG: 6,             // 不死族主动亡者汲取伤害
   UNDEAD_HEAL: 8,            // 不死族主动亡者汲取回血
   STATUS_DURATION: 3         // 灼烧持续回合数
