@@ -22,6 +22,10 @@ module.exports = {
   WARLOCK_HEAL: 5,            // 术士诅咒回血量
   GAMBLER_BACKFIRE: 0.2,      // 赌徒随机牌反噬概率(20%)
   GAMBLER_BACKFIRE_DMG: 5,    // 赌徒反噬无负面牌时的扣血量
+  TYCOON_SAVE_THRESHOLD: 5,  // 财阀被动囤水晶阈值(剩余水晶≥5时存入储蓄)
+  TYCOON_DMG_PER_SAVE: 2,    // 财阀主动每点储蓄造成伤害
+  UNDEAD_DMG: 6,             // 不死族主动亡者汲取伤害
+  UNDEAD_HEAL: 8,            // 不死族主动亡者汲取回血
   STATUS_DURATION: 3,         // 灼烧持续回合数
-  DOOM_DAMAGE_PER_STACK: 20    // 死亡倒计时每层爆发伤害
+  DOOM_DAMAGE_PER_STACK: 20    // 死亡倒计时每层爆发伤害（机制保留，无卡牌使用）
 };

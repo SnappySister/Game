@@ -31,7 +31,9 @@ class CardGameEngine {
       equipShieldAmt: 0,
       equipManaTurn: 0,
       equipManaAmt: 0,
-      summons: []
+      summons: [],
+      manaSavings: 0,       // 财阀储蓄水晶
+      undeadUsed: false     // 不死族免死是否用过
     }));
     this.turn = -1;
     this.logs = [];
@@ -513,7 +515,7 @@ class CardGameEngine {
     if (p.immune) { p.immune = false; this.logs.push(`${p.name} 的格挡效果消失了`); }
     if (p.negImmune) { p.negImmune = false; this.logs.push(`${p.name} 的护罩效果消失了`); }
     p.maxMana = Math.min(MAX_MANA, p.maxMana + 1);
-    p.mana = p.maxMana;
+    p.mana = p.maxMana + (p.manaSavings || 0); // 财阀储蓄水晶自动可用
     // 大法师被动：抽牌+1
     const drawN = p.character === 'archmage' ? TURN_DRAW + 1 : TURN_DRAW;
     this._drawCards(p, drawN);
@@ -641,6 +643,25 @@ class CardGameEngine {
           else this.logs.push(`${user.name} 释放【奥术涌动】(耗${ch.active.cost}水晶)抽2张(对手无手牌)`);
         }
         break;
+      case 'tycoon': {
+        const saved = user.manaSavings || 0;
+        const dmg = saved * CONFIG.TYCOON_DMG_PER_SAVE;
+        if (dmg > 0) {
+          this._dealDamage(user, target, dmg);
+          this.logs.push(`${user.name} 释放【水晶爆发】(耗${ch.active.cost}水晶)，消耗${saved}储蓄造成${dmg}伤害`);
+          user.manaSavings = 0;
+        } else {
+          this.logs.push(`${user.name} 释放【水晶爆发】(耗${ch.active.cost}水晶，无储蓄可用)`);
+        }
+        break;
+      }
+      case 'undead': {
+        const dmg = CONFIG.UNDEAD_DMG, heal = CONFIG.UNDEAD_HEAL;
+        this._dealDamage(user, target, dmg);
+        if (user.burn === 0) user.hp = Math.min(user.maxHp, user.hp + heal);
+        this.logs.push(`${user.name} 释放【亡者汲取】(耗${ch.active.cost}水晶)，造成${dmg}伤回${heal}血${user.burn > 0 ? '（灼烧中回血无效）' : ''}`);
+        break;
+      }
     }
     user.skillUsedThisTurn = true;
     this._broadcastAll();
@@ -652,6 +673,11 @@ class CardGameEngine {
     this._applyStatusEffects(pp);
     if (pp.frozen) { pp.frozen = false; this.logs.push(`${pp.name} 从冰冻中恢复`); }
     if (pp.cardCostPenalty) { pp.cardCostPenalty = 0; } // 软控仅持续一个回合
+    // 财阀被动：回合结束剩余水晶≥5时存入储蓄
+    if (pp.character === 'tycoon' && pp.mana >= CONFIG.TYCOON_SAVE_THRESHOLD) {
+      pp.manaSavings = (pp.manaSavings || 0) + pp.mana;
+      this.logs.push(`${pp.name} 触发【囤积】，存入${pp.mana}水晶(储蓄${pp.manaSavings})`);
+    }
     this.turn = (this.turn + 1) % 2;
     this._beginTurn(this.turn);
     this._broadcastAll();
@@ -659,6 +685,14 @@ class CardGameEngine {
   }
 
   _checkEnd() {
+    // 不死族被动：致命伤害保1血(每局1次)
+    for (const p of this.players) {
+      if (p.hp <= 0 && p.character === 'undead' && !p.undeadUsed) {
+        p.hp = 1;
+        p.undeadUsed = true;
+        this.logs.push(`${p.name} 触发【不灭】，保留1血不死！`);
+      }
+    }
     const alive = this.players.map((p, i) => p.hp > 0 ? i : -1).filter(x => x !== -1);
     if (alive.length <= 1) {
       const winner = alive.length === 1 ? this.players[alive[0]].name : '平局';
@@ -707,7 +741,9 @@ class CardGameEngine {
           skillName: ch && ch.active ? ch.active.name : '',
           skillDesc: ch && ch.active ? ch.active.desc : '',
           skillCost: ch && ch.active ? ch.active.cost : 0,
-          skillUsedThisTurn: !!p.skillUsedThisTurn
+          skillUsedThisTurn: !!p.skillUsedThisTurn,
+          manaSavings: p.manaSavings || 0,
+          undeadUsed: !!p.undeadUsed
         };
       })
     };
