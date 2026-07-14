@@ -19,11 +19,11 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           key: ${{ secrets.SSH_KEY }}
           script: |
+            # pm2 在 nvm 路径下，非交互式shell默认找不到，用完整路径
+            PM2=/root/.nvm/versions/node/v20.20.2/bin/pm2
             cd ${{ secrets.PROJECT_PATH }}
             # 拉取最新代码
             git pull origin main
-            # 如有依赖变更可取消下一行注释
-            # npm install --production
-            # 重启服务（PM2）
-            pm2 restart lobby
+            # 重启服务
+            $PM2 restart lobby
             echo "部署完成：$(date)"
