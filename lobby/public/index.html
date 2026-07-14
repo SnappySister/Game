@@ -1288,13 +1288,11 @@ function updateArea(id, p) {
   if (frozenTag) frozenTag.style.display = p.frozen ? 'inline' : 'none';
   const negImmuneTag = el.querySelector('.negimmune-tag');
   if (negImmuneTag) negImmuneTag.style.display = p.negImmune ? 'inline' : 'none';
-  // 装备显示
+  // 装备显示（带名称：影刃/烈焰之杖/守护者之盾/宝藏）
   const equipTag = el.querySelector('.equip-tag');
   if (equipTag) {
-    const parts = [];
-    if (p.equipBladeTurn > 0) parts.push(`🗡️${p.equipBladeTurn}`);
-    if (p.equipShieldTurn > 0) parts.push(`🛡️${p.equipShieldTurn}`);
-    if (p.equipManaTurn > 0) parts.push(`💰${p.equipManaTurn}`);
+    const EQUIP_ICON = { '影刃': '🗡️', '烈焰之杖': '🔥', '守护者之盾': '🛡️', '宝藏': '💰' };
+    const parts = (p.equips || []).map(e => `${EQUIP_ICON[e.name] || '⚙️'}${e.name}${e.turn}`);
     if (parts.length) { equipTag.style.display = 'inline'; equipTag.textContent = ' ' + parts.join(' '); }
     else equipTag.style.display = 'none';
   }
@@ -1302,13 +1300,16 @@ function updateArea(id, p) {
   const delayTag = el.querySelector('.delay-tag');
   if (delayTag) {
     if (p.summons && p.summons.length) {
-      const labels = { firesprite: '🔥火灵', spider: '🕷️蜘蛛', guardian: '🛡️壁垒' };
+      // 按名字区分随从（火灵/剑魔/地狱火/蜘蛛女皇/壁垒守卫），fallback 到 kind
+      const NAME_ICON = { '火灵': '🔥', '剑魔': '⚔️', '地狱火': '🌋', '蜘蛛女皇': '🕷️', '壁垒守卫': '🛡️' };
+      const KIND_LABEL = { firesprite: '火灵', spider: '蜘蛛', guardian: '壁垒' };
       const parts = p.summons.map(s => {
-        const lbl = labels[s.kind] || s.kind;
-        if (s.kind === 'firesprite') return `${lbl}${s.dmg}(${s.turns})`;
-        if (s.kind === 'spider') return `${lbl}毒${s.stacks || 0}(${s.turns})`;
-        if (s.turns >= 0) return `${lbl}(${s.turns})`;
-        return lbl;
+        const name = s.name || KIND_LABEL[s.kind] || s.kind;
+        const icon = NAME_ICON[name] || '👻';
+        if (s.kind === 'firesprite') return `${icon}${name}${s.dmg}(${s.turns})`;
+        if (s.kind === 'spider') return `${icon}${name}毒${s.stacks || 0}(${s.turns})`;
+        if (s.turns >= 0) return `${icon}${name}(${s.turns})`;
+        return `${icon}${name}`;
       });
       delayTag.style.display = 'inline';
       delayTag.textContent = ' ' + parts.join(' ');

@@ -327,13 +327,13 @@ class CardGameEngine {
       coin:     () => { user.mana += 1; },
       /* ===== 随从(召唤物) ===== */
       summon_fire: () => {
-        user.summons.push({ kind: 'firesprite', turns: card.summonTurns || 3, dmg: card.summonDmg || v, incr: card.summonIncr || 2 });
+        user.summons.push({ kind: 'firesprite', name: card.name, turns: card.summonTurns || 3, dmg: card.summonDmg || v, incr: card.summonIncr || 2 });
       },
       summon_spider: () => {
-        user.summons.push({ kind: 'spider', turns: card.summonTurns || 3, stacks: card.summonStacks || 2 });
+        user.summons.push({ kind: 'spider', name: card.name, turns: card.summonTurns || 3, stacks: card.summonStacks || 2 });
       },
       summon_guard: () => {
-        user.summons.push({ kind: 'guardian', turns: card.summonTurns || 3 });
+        user.summons.push({ kind: 'guardian', name: card.name, turns: card.summonTurns || 3 });
       },
       /* ===== 限时装备 ===== */
       equip:        () => { user.equipBladeTurn = card.equipTurns || 3; user.equipBladeDmg = card.equipDmg || 4; },
@@ -427,21 +427,19 @@ class CardGameEngine {
       rand_summon: () => {
         const times = user.character === 'gambler' ? 2 : 1;
         const summoned = [];
-        const fireCard = CARDS.find(c => c.type === 'summon_fire');
-        const spiderCard = CARDS.find(c => c.type === 'summon_spider');
-        const guardCard = CARDS.find(c => c.type === 'summon_guard');
-        const pool = [fireCard, spiderCard, guardCard];
+        // 每类取所有卡牌(含火灵/剑魔/地狱火等同类变体)，合并后随机抽
+        const pool = CARDS.filter(c => ['summon_fire', 'summon_spider', 'summon_guard'].includes(c.type));
         for (let t = 0; t < times; t++) {
           const pick = pool[Math.floor(Math.random() * pool.length)];
           if (pick.type === 'summon_fire') {
-            user.summons.push({ kind: 'firesprite', turns: pick.summonTurns || 3, dmg: pick.summonDmg || 5, incr: pick.summonIncr || 2 });
-            summoned.push('火灵');
+            user.summons.push({ kind: 'firesprite', name: pick.name, turns: pick.summonTurns || 3, dmg: pick.summonDmg || 5, incr: pick.summonIncr || 2 });
+            summoned.push(pick.name);
           } else if (pick.type === 'summon_spider') {
-            user.summons.push({ kind: 'spider', turns: pick.summonTurns || 3, stacks: pick.summonStacks || 2 });
-            summoned.push('蜘蛛女皇');
+            user.summons.push({ kind: 'spider', name: pick.name, turns: pick.summonTurns || 3, stacks: pick.summonStacks || 2 });
+            summoned.push(pick.name);
           } else {
-            user.summons.push({ kind: 'guardian', turns: pick.summonTurns || 3 });
-            summoned.push('壁垒守卫');
+            user.summons.push({ kind: 'guardian', name: pick.name, turns: pick.summonTurns || 3 });
+            summoned.push(pick.name);
           }
         }
         extra = { ...extra, summoned };
@@ -704,6 +702,18 @@ class CardGameEngine {
     this._checkEnd();
   }
 
+  // 当前装备列表(含名称)，供前端文字显示
+  _equipList(p) {
+    const list = [];
+    if (p.equipBladeTurn > 0) {
+      // equipBurnStacks>0 为烈焰之杖，否则为影刃
+      list.push({ name: p.equipBurnStacks > 0 ? '烈焰之杖' : '影刃', turn: p.equipBladeTurn });
+    }
+    if (p.equipShieldTurn > 0) list.push({ name: '守护者之盾', turn: p.equipShieldTurn });
+    if (p.equipManaTurn > 0) list.push({ name: '宝藏', turn: p.equipManaTurn });
+    return list;
+  }
+
   _statePayload() {
     return {
       turn: this.turn,
@@ -721,8 +731,11 @@ class CardGameEngine {
           equipBladeTurn: p.equipBladeTurn || 0,
           equipShieldTurn: p.equipShieldTurn || 0,
           equipManaTurn: p.equipManaTurn || 0,
+          // 装备列表(含名称，供前端文字显示)：影刃/烈焰之杖/守护者之盾/宝藏
+          equips: this._equipList(p),
           summons: (p.summons || []).map(s => ({
             kind: s.kind,
+            name: s.name || '',
             turns: s.turns === undefined ? -1 : s.turns,
             dmg: s.dmg === undefined ? 0 : s.dmg,
             stacks: s.stacks === undefined ? 0 : s.stacks
