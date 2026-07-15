@@ -380,8 +380,11 @@
 <!-- ==================== 四川麻将 ==================== -->
 <div id="view-mahjong" class="view" style="display:none">
   <div id="mahjong-top-bar">
-    <div id="mahjong-status">等待连接...</div>
-    <div id="mahjong-dingque-tip" class="mahjong-dingque-tip" style="display:none"></div>
+    <div class="mahjong-top-info">
+      <div id="mahjong-status">等待连接...</div>
+      <div id="mahjong-self-info" class="mahjong-self-info" style="display:none"></div>
+      <div id="mahjong-dingque-tip" class="mahjong-dingque-tip" style="display:none"></div>
+    </div>
     <div class="mahjong-top-btns">
       <button id="btn-mahjong-rule">规则</button>
       <button id="btn-mahjong-chat">聊天</button>
@@ -1115,6 +1118,12 @@ function updateBadges() {
   else { bG.style.display = 'none'; }
 }
 
+// 聊天面板是否可见(直接读 DOM 真实状态，避免与 isPanelOpen 副本不同步)
+function chatPanelVisible() {
+  const p = $('#chat-panel');
+  return !!p && p.style.display !== 'none';
+}
+
 function renderChat(scope) {
   const msgs = $('#chat-messages');
   const list = chatMessages[scope] || [];
@@ -1133,13 +1142,13 @@ function addChatMessage(d) {
     const scope = d.scope || 'lobby';
     // 服务器历史消息没有 scope 字段，补上去
     chatMessages[scope] = (d.messages || []).map(m => ({ ...m, scope }));
-    if (chatScope === scope && isPanelOpen) renderChat(scope);
+    if (chatScope === scope && chatPanelVisible()) renderChat(scope);
   } else if (d.event === 'chat') {
     const scope = d.scope || 'room';
     const msg = { name: d.name, text: d.text, time: d.time, scope };
     chatMessages[scope].push(msg);
     if (chatMessages[scope].length > 100) chatMessages[scope].shift();
-    if (chatScope === scope && isPanelOpen) {
+    if (chatScope === scope && chatPanelVisible()) {
       renderChat(scope);
     } else {
       unread[scope]++;
@@ -1239,7 +1248,7 @@ $('#btn-game-chat').onclick = () => {
   const open = $('#chat-panel').style.display === 'none';
   $('#chat-panel').style.display = open ? 'flex' : 'none';
   $('#chat-toggle-btn').style.display = open ? 'none' : 'flex';
-  isPanelOpen = open;
+  if (open) renderChat(chatScope);
 };
 
 /* ==================== 聊天面板操作 ==================== */
@@ -1257,9 +1266,10 @@ $('#btn-chat-close').onclick = () => {
 $('#chat-toggle-btn').onclick = () => {
   $('#chat-panel').style.display = 'flex';
   $('#chat-toggle-btn').style.display = 'none';
-  // 打开时清空当前频道和全局红点
+  // 打开时清空当前频道红点并渲染最新内容(否则关闭期间收到的新消息不会显示)
   unread[chatScope] = 0;
   updateBadges();
+  renderChat(chatScope);
 };
 $('#chat-send').onclick = () => {
   const t = $('#chat-input').value.trim(); if (!t) return;
@@ -1523,7 +1533,7 @@ $('#btn-poker-chat').onclick = () => {
   const open = $('#chat-panel').style.display === 'none';
   $('#chat-panel').style.display = open ? 'flex' : 'none';
   $('#chat-toggle-btn').style.display = open ? 'none' : 'flex';
-  isPanelOpen = open;
+  if (open) renderChat(chatScope);
 };
 $('#btn-end-poker').onclick = () => {
   if (!confirm('确定要结束对局吗？所有玩家将回到准备状态。')) return;
@@ -1788,6 +1798,14 @@ function renderMahjongState(s) {
   }
   $('#mahjong-status').textContent = statusText;
   $('#mahjong-deck-count').textContent = s.deckCount;
+
+  // 自己的信息（名字+胡+分数），定缺由 dingque-tip 单独带颜色显示，避免重复
+  const selfInfo = $('#mahjong-self-info');
+  if (selfInfo && me.name) {
+    const huMark = me.isHu ? '<span class="seat-hu">胡</span>' : '';
+    selfInfo.innerHTML = `<b>${me.name}</b>${huMark} | <b style="color:#f1c40f">${me.score}分</b>`;
+    selfInfo.style.display = '';
+  }
 
   // 自己的定缺提醒（定缺后常驻显示，出牌阶段防止忘缺门）
   const dqTip = $('#mahjong-dingque-tip');
@@ -2103,18 +2121,20 @@ function sendMahjongExchange() {
 function renderMahjongSettle(settlement) {
   if (!settlement) return;
   const box = $('#mahjong-settle-content');
-  const sorted = [...settlement.players].sort((a, b) => b.score - a.score);
+  // 用 change(本局变化量) 显示和排序，而非 score(累计总分)，否则与对局总账对不上
+  const sorted = [...settlement.players].sort((a, b) => (b.change ?? b.score) - (a.change ?? a.score));
   let html = '<table class="settle-table">';
-  html += '<tr><th>玩家</th><th>胡牌</th><th>番型</th><th>分数</th></tr>';
+  html += '<tr><th>玩家</th><th>胡牌</th><th>番型</th><th>本局得分</th><th>累计</th></tr>';
   for (const p of sorted) {
-    const color = p.score > 0 ? '#2ecc71' : (p.score < 0 ? '#e74c3c' : '#aaa');
-    const sign = p.score > 0 ? '+' : '';
+    const ch = p.change !== undefined ? p.change : p.score;
+    const color = ch > 0 ? '#2ecc71' : (ch < 0 ? '#e74c3c' : '#aaa');
+    const sign = ch > 0 ? '+' : '';
     let fanHtml = '-';
     if (p.fanDetail && p.fanDetail.fans && p.fanDetail.fans.length > 0) {
       fanHtml = `<span style="color:#f1c40f">${p.fanDetail.totalFan}番</span><br><small style="color:#aaa">${p.fanDetail.fans.map(f => f.label).join(' ')}</small>`;
     }
     const huLabel = p.isHu ? ('是 ' + (p.huTile ? tileFaceHTML(p.huTile) : '')) : '否';
-    html += `<tr><td><b>${p.name}</b></td><td>${huLabel}</td><td>${fanHtml}</td><td style="color:${color}">${sign}${p.score}</td></tr>`;
+    html += `<tr><td><b>${p.name}</b></td><td>${huLabel}</td><td>${fanHtml}</td><td style="color:${color}">${sign}${ch}</td><td style="color:#f1c40f">${p.score}</td></tr>`;
   }
   html += '</table>';
   box.innerHTML = html;
@@ -2139,7 +2159,7 @@ $('#btn-mahjong-chat').onclick = () => {
   const open = $('#chat-panel').style.display === 'none';
   $('#chat-panel').style.display = open ? 'flex' : 'none';
   $('#chat-toggle-btn').style.display = open ? 'none' : 'flex';
-  isPanelOpen = open;
+  if (open) renderChat(chatScope);
 };
 $('#btn-exchange-confirm').onclick = () => { sendMahjongExchange(); };
 $('#btn-end-mahjong').onclick = () => {

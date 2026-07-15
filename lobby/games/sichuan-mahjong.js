@@ -980,8 +980,9 @@ class SichuanMahjongEngine {
       fans.push({ name: 'jingoudiao', label: '金钩钓', fan: 1 });
     }
 
-    // 根（杠）：手里每有1组四张相同牌，+1番
-    const genCount = this._countGen(player.melds);
+    // 根（杠）：melds里每1组杠 + 手牌里每1组4张相同牌，各+1番
+    // （选胡未杠成时，手里握着的4张也算根，符合"4张即根"规则）
+    const genCount = this._countGen(player.melds, allTiles);
     if (genCount > 0) {
       fans.push({ name: 'gen', label: `带根x${genCount}`, fan: genCount });
     }
@@ -1097,8 +1098,21 @@ class SichuanMahjongEngine {
     return suits.size === 1;
   }
 
-  _countGen(melds) {
-    return melds.filter(m => m.type === 'angang' || m.type === 'minggang' || m.type === 'jiagang').length;
+  // 根：melds里每1组杠(暗杠/明杠/加杠) + 手牌里每1组4张相同牌，各算1根
+  // 注意：杠牌已移出手牌进melds，所以两者不会重复计数
+  _countGen(melds, hand) {
+    let count = melds.filter(m => m.type === 'angang' || m.type === 'minggang' || m.type === 'jiagang').length;
+    if (hand && hand.length) {
+      const map = {};
+      for (const t of hand) {
+        const k = tileKey(t);
+        map[k] = (map[k] || 0) + 1;
+      }
+      for (const k in map) {
+        if (map[k] >= 4) count += 1;  // 手里握着的4张相同牌算1根
+      }
+    }
+    return count;
   }
 
   _isTing(hand, dingque) {
