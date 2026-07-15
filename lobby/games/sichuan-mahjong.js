@@ -76,6 +76,9 @@ class SichuanMahjongEngine {
 
     this.discardPile = [];
     this.currentPlayer = this.dealerIndex;
+    // 记录本局开始时各玩家分数，用于 _endGame 计算本局变化量(change)
+    // 必须在 start() 时刷新，否则多局时 initialScores 还停在首局构造值，change 会算成累计分
+    this.initialScores = this.players.map(p => p.score);
     if (this.players.length <= 2) {
       this.phase = 'dingque';
       this.logs = [`第${this.turn + 1}局开始，请选择定缺`];
