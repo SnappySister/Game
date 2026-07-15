@@ -11,11 +11,10 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
 
 #view-login {
   display: flex;
-}
-
-#view-login {
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: 20px;
 }
 .login-box {
   background: #16213e;
@@ -57,6 +56,32 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   color: #7f8c8d;
   text-align: center;
 }
+
+/* 登录页更新公告框 */
+.login-changelog {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-top: 18px;
+  width: 90%;
+  max-width: 420px;
+  max-height: 38vh;
+  overflow-y: auto;
+}
+.login-changelog-title {
+  color: #f1c40f;
+  font-size: 15px;
+  font-weight: bold;
+  margin-bottom: 10px;
+  text-align: center;
+}
+.login-changelog-content { font-size: 13px; line-height: 1.6; color: #ddd; }
+.login-changelog-content .changelog-version { margin-bottom: 12px; }
+.login-changelog-content .changelog-version:last-child { margin-bottom: 0; }
+.login-changelog-content .changelog-title { font-size: 14px; }
+.login-changelog-content ul { margin: 4px 0 0 18px; padding: 0; }
+.login-changelog-content li { margin: 3px 0; }
 
 /* ===== 大厅 ===== */
 #view-lobby { padding: 0; }
@@ -592,10 +617,29 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
 
 /* ===== 弹窗 ===== */
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
-.modal-box { background: #16213e; padding: 30px 40px; border-radius: 12px; text-align: center; border: 1px solid #0f3460; max-height: 90vh; overflow-y: auto; }
+.modal-box { position: relative; background: #16213e; padding: 30px 40px; border-radius: 12px; text-align: center; border: 1px solid #0f3460; max-height: 90vh; overflow-y: auto; }
 .modal-box h2 { color: #f1c40f; margin-bottom: 16px; }
 .modal-box button { padding: 10px 24px; border: none; border-radius: 6px; background: #e74c3c; color: #fff; font-size: 15px; cursor: pointer; margin-top: 10px; }
 .modal-box button:hover { background: #c0392b; }
+/* 弹窗右上角关闭按钮(×)，方便随时关闭无需滑到底部 */
+.modal-close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  line-height: 28px;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: #95a5a6;
+  font-size: 22px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 5;
+}
+.modal-close:hover { background: rgba(255,255,255,.1); color: #fff; }
 
 /* ===== 规则弹窗特殊样式 ===== */
 .rule-box { text-align: left; min-width: 320px; max-width: 460px; }
@@ -610,6 +654,24 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
 .rule-table th { background: #2c3e50; color: #f1c40f; }
 .rule-table td:nth-child(2) { text-align: center; color: #2ecc71; font-weight: bold; }
 .rule-box button { display: block; margin: 14px auto 0; }
+
+/* ===== 更新公告 ===== */
+.changelog-version { margin-bottom: 16px; }
+.changelog-title { font-size: 16px; color: #f1c40f; font-weight: bold; margin-bottom: 6px; }
+.changelog-date { font-size: 12px; color: #7f8c8d; font-weight: normal; }
+.changelog-version ul { margin: 4px 0 0 20px; padding: 0; }
+.changelog-version li { margin: 4px 0; color: #ddd; }
+.btn-changelog {
+  padding: 5px 12px;
+  background: #8e44ad;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  margin-right: 10px;
+}
+.btn-changelog:hover { background: #7d3c98; }
 
 /* ===== 德州扑克 ===== */
 #view-poker { padding: 10px; gap: 8px; }
@@ -727,6 +789,10 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   .login-box { padding: 24px 20px; min-width: auto; width: 90%; max-width: 340px; }
   .login-box h1 { font-size: 22px; }
   #nickname-input, #login-btn { font-size: 16px; padding: 12px; }
+  /* 登录页公告框: 手机端占满宽度、限制高度可滚动，避免挤掉登录框 */
+  .login-changelog { width: 92%; max-width: 360px; max-height: 32vh; padding: 14px 16px; }
+  .login-changelog-title { font-size: 14px; }
+  .login-changelog-content { font-size: 12px; }
 
   /* 大厅 */
   .lobby-header { padding: 10px 14px; }

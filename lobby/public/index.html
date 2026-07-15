@@ -18,13 +18,20 @@
     <button id="login-btn">进入大厅</button>
     <div id="version-tag" class="version-tag">v1.0.0</div>
   </div>
+  <div id="login-changelog" class="login-changelog">
+    <div class="login-changelog-title">📢 更新公告</div>
+    <div id="login-changelog-content" class="login-changelog-content"></div>
+  </div>
 </div>
 
 <!-- ==================== 大厅 ==================== -->
 <div id="view-lobby" class="view" style="display:none">
   <div class="lobby-header">
     <h2>游戏大厅</h2>
-    <div class="lobby-info">在线: <span id="lobby-online-count">0</span>人</div>
+    <div class="lobby-info">
+      <button id="btn-changelog" class="btn-changelog">📢 更新公告</button>
+      在线: <span id="lobby-online-count">0</span>人
+    </div>
   </div>
   <div class="lobby-body">
     <div class="games-list" id="games-list"></div>
@@ -132,6 +139,15 @@
   </div>
 
   <div id="hand" class="hand"></div>
+</div>
+
+<!-- 更新公告弹窗 -->
+<div id="changelog-modal" class="modal" style="display:none">
+  <div class="modal-box rule-box">
+    <h2>📢 更新公告</h2>
+    <div id="changelog-content" class="rule-content"></div>
+    <button id="close-changelog">知道了</button>
+  </div>
 </div>
 
 <!-- 规则弹窗 (游戏内) -->
@@ -707,24 +723,16 @@ function showView(id) {
     $('#tab-lobby').classList.remove('active');
   }
   else if (id === '#view-game') {
-    $('#chat-panel').style.display = 'flex';
-    $('#chat-toggle-btn').style.display = 'none';
-    isPanelOpen = true;
-    $('#tab-lobby').style.display = 'inline-block';
-    $('#tab-room').style.display = 'inline-block';
+    $('#chat-panel').style.display = 'none';  // 游戏内默认关闭聊天，手动打开
+    isPanelOpen = false;
+    $('#chat-toggle-btn').style.display = 'flex';
     setChatScope('room');
-    $('#tab-room').classList.add('active');
-    $('#tab-lobby').classList.remove('active');
   }
   else if (id === '#view-poker') {
-    $('#chat-panel').style.display = 'flex';
-    $('#chat-toggle-btn').style.display = 'none';
-    isPanelOpen = true;
-    $('#tab-lobby').style.display = 'inline-block';
-    $('#tab-room').style.display = 'inline-block';
+    $('#chat-panel').style.display = 'none';  // 游戏内默认关闭聊天，手动打开
+    isPanelOpen = false;
+    $('#chat-toggle-btn').style.display = 'flex';
     setChatScope('room');
-    $('#tab-room').classList.add('active');
-    $('#tab-lobby').classList.remove('active');
   }
   else if (id === '#view-mahjong') {
     $('#chat-panel').style.display = 'none';  // 游戏内默认关闭聊天
@@ -1140,6 +1148,40 @@ function addChatMessage(d) {
   }
 }
 
+/* ==================== 更新公告 ==================== */
+// 渲染公告内容到指定容器(selector)，登录页与大厅弹窗共用
+function renderChangelog(selector) {
+  const changes = window.GAME_CHANGES || [];
+  const box = $(selector);
+  if (!box) return;
+  if (!changes.length) { box.innerHTML = '<p>暂无更新内容</p>'; return; }
+  box.innerHTML = changes.map(c =>
+    `<div class="changelog-version">` +
+    `<div class="changelog-title">v${c.version} <span class="changelog-date">${c.date || ''}</span></div>` +
+    `<ul>${(c.items || []).map(it => `<li>${it}</li>`).join('')}</ul>` +
+    `</div>`
+  ).join('');
+}
+// 登录页直接展示最新公告(无需弹窗、无需记忆)
+renderChangelog('#login-changelog-content');
+// 大厅手动查看全部公告
+$('#btn-changelog')?.addEventListener('click', () => { renderChangelog('#changelog-content'); $('#changelog-modal').style.display = 'flex'; });
+$('#close-changelog')?.addEventListener('click', () => { $('#changelog-modal').style.display = 'none'; });
+
+/* 给规则类弹窗(.modal-box.rule-box)注入右上角 × 关闭按钮，点击关闭所在 modal。
+   注意：只给规则/公告弹窗加，结算、定缺、买地等强制操作弹窗不加，避免玩家误关卡流程 */
+document.querySelectorAll('.modal-box.rule-box').forEach(box => {
+  const btn = document.createElement('button');
+  btn.className = 'modal-close';
+  btn.innerHTML = '&times;';
+  btn.title = '关闭';
+  btn.addEventListener('click', () => {
+    const modal = box.closest('.modal');
+    if (modal) modal.style.display = 'none';
+  });
+  box.appendChild(btn);
+});
+
 /* ==================== 登录 ==================== */
 // 登录页填充版本号
 $('#version-tag').textContent = 'v' + (window.GAME_VERSION || '1.0.0');
@@ -1193,7 +1235,12 @@ $('#close-rule').onclick = () => { $('#game-rule-modal').style.display = 'none';
 $('#btn-leave-game').onclick = () => { send({ type: 'leaveRoom' }); showView('#view-lobby'); };
 $('#btn-back-room').onclick = () => { $('#game-over-modal').style.display = 'none'; send({ type: 'backToRoom' }); };
 $('#btn-ready').onclick = () => { send({ type: 'toggleReady' }); };
-$('#btn-game-chat').onclick = () => { $('#chat-panel').style.display = $('#chat-panel').style.display === 'none' ? 'flex' : 'none'; };
+$('#btn-game-chat').onclick = () => {
+  const open = $('#chat-panel').style.display === 'none';
+  $('#chat-panel').style.display = open ? 'flex' : 'none';
+  $('#chat-toggle-btn').style.display = open ? 'none' : 'flex';
+  isPanelOpen = open;
+};
 
 /* ==================== 聊天面板操作 ==================== */
 $('#tab-lobby').onclick = () => {
@@ -1472,7 +1519,12 @@ $('#end-turn-btn').onclick = () => {
 $('#btn-poker-rule').onclick = () => { $('#poker-rule-modal').style.display = 'flex'; };
 $('#close-poker-rule').onclick = () => { $('#poker-rule-modal').style.display = 'none'; };
 $('#btn-leave-poker').onclick = () => { send({ type: 'leaveRoom' }); showView('#view-lobby'); };
-$('#btn-poker-chat').onclick = () => { $('#chat-panel').style.display = $('#chat-panel').style.display === 'none' ? 'flex' : 'none'; };
+$('#btn-poker-chat').onclick = () => {
+  const open = $('#chat-panel').style.display === 'none';
+  $('#chat-panel').style.display = open ? 'flex' : 'none';
+  $('#chat-toggle-btn').style.display = open ? 'none' : 'flex';
+  isPanelOpen = open;
+};
 $('#btn-end-poker').onclick = () => {
   if (!confirm('确定要结束对局吗？所有玩家将回到准备状态。')) return;
   send({ type: 'endGame' });
@@ -2083,7 +2135,12 @@ document.querySelectorAll('.dingque-btn').forEach(b => {
 $('#btn-mahjong-rule').onclick = () => { $('#mahjong-rule-modal').style.display = 'flex'; };
 $('#close-mahjong-rule').onclick = () => { $('#mahjong-rule-modal').style.display = 'none'; };
 $('#btn-leave-mahjong').onclick = () => { send({ type: 'leaveRoom' }); showView('#view-lobby'); };
-$('#btn-mahjong-chat').onclick = () => { $('#chat-panel').style.display = $('#chat-panel').style.display === 'none' ? 'flex' : 'none'; };
+$('#btn-mahjong-chat').onclick = () => {
+  const open = $('#chat-panel').style.display === 'none';
+  $('#chat-panel').style.display = open ? 'flex' : 'none';
+  $('#chat-toggle-btn').style.display = open ? 'none' : 'flex';
+  isPanelOpen = open;
+};
 $('#btn-exchange-confirm').onclick = () => { sendMahjongExchange(); };
 $('#btn-end-mahjong').onclick = () => {
   if (!confirm('确定要结束对局吗？所有玩家将回到准备状态。')) return;
