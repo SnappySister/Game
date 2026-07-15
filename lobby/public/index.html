@@ -799,7 +799,27 @@ function handleMessage(d) {
   }
   if (d.event === 'lobbyState') {
     $('#lobby-online-count').textContent = d.online.length;
-    $('#lobby-online-list').innerHTML = d.online.map(u => `<div>${u.name}</div>`).join('');
+    $('#lobby-online-list').innerHTML = d.online.map(u => {
+      // 显示玩家当前状态：大厅 / 在玩某游戏 / 在某房间
+      let info = '';
+      let action = '';
+      if (!u.roomId) {
+        info = '<span class="online-info">在大厅</span>';
+      } else if (u.gameName) {
+        const tag = u.roomStatus === 'playing' ? '游戏中' : '等待中';
+        info = `<span class="online-info">${u.gameName} · ${u.roomName || ''} · ${tag}${u.isSpectator ? ' · 观战' : ''}</span>`;
+        if (u.canJoin) action = `<button class="btn-online-join" data-rid="${u.roomId}">加入</button>`;
+        else if (u.canSpectate) action = `<button class="btn-online-join" data-rid="${u.roomId}" data-sp="1">观战</button>`;
+      }
+      return `<div class="online-row"><span class="online-name">${u.name}</span>${info}${action}</div>`;
+    }).join('');
+    // 一键加入/观战按钮
+    document.querySelectorAll('#lobby-online-list .btn-online-join').forEach(b => {
+      b.onclick = () => {
+        if (b.dataset.sp) send({ type: 'spectateRoom', roomId: b.dataset.rid });
+        else send({ type: 'joinRoom', roomId: b.dataset.rid });
+      };
+    });
     $('#games-list').innerHTML = d.games.map(g => {
       const hasRule = ['card','poker','mahjong','monopoly'].includes(g.id);
       return `
@@ -1868,12 +1888,17 @@ function renderMahjongState(s) {
     log.scrollTop = log.scrollHeight;
   }
 
-  // 定缺弹窗
+  // 定缺弹窗：显示时隐藏聊天浮动按钮，避免手机端误触弹出聊天遮挡定缺操作
   const dqModal = $('#mahjong-dingque-modal');
-  if (s.phase === 'dingque' && !me.dingque && !isSpectator) {
+  const dqActive = s.phase === 'dingque' && !me.dingque && !isSpectator;
+  if (dqActive) {
     dqModal.style.display = 'flex';
+    $('#chat-toggle-btn').style.display = 'none';
+    $('#chat-panel').style.display = 'none';
   } else {
     dqModal.style.display = 'none';
+    // 定缺结束后恢复游戏内聊天浮动按钮（仅当聊天面板未打开时）
+    if ($('#chat-panel').style.display === 'none') $('#chat-toggle-btn').style.display = 'flex';
   }
 
   // 手牌区高亮

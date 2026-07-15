@@ -115,7 +115,29 @@ function broadcastRoom(roomId, obj) {
 function buildLobbyState() {
   const online = [];
   for (const [, u] of users) {
-    if (u.state === 'lobby') online.push({ name: u.name });
+    // 所有已登录用户都算在线(含大厅/房间/游戏内)，断开的已从 users 删除
+    const entry = { name: u.name, state: u.state };
+    if (u.roomId) {
+      const room = rooms.get(u.roomId);
+      if (room) {
+        const game = GAMES.find(g => g.id === room.gameType);
+        entry.gameType = room.gameType;
+        entry.gameName = game ? game.name : room.gameType;
+        entry.roomId = room.id;
+        entry.roomName = room.name;
+        entry.roomStatus = room.status;  // waiting/playing
+        entry.playerCount = room.players.length;
+        entry.maxPlayers = room.maxPlayers;
+        // 是否观战(不在 players 列表里即在观战)
+        entry.isSpectator = !room.players.includes(u.id);
+        // 一键加入: 等待中且未满的房间；游戏进行中可观战。
+        // 注意: 此数据广播给所有大厅玩家，"能否加入"只取决于房间状态，
+        // 不取决于被显示的玩家(看列表的人都在大厅，不会在该房间里)。
+        entry.canJoin = room.status === 'waiting' && room.players.length < room.maxPlayers;
+        entry.canSpectate = room.status === 'playing';
+      }
+    }
+    online.push(entry);
   }
   return { event: 'lobbyState', online, games: GAMES };
 }
@@ -290,6 +312,7 @@ wss.on('connection', (ws) => {
       broadcastRoom(room.id, buildRoomState(room));
       send(ws, buildRoomState(room));
       send(ws, { event: 'chatHistory', scope: 'room', messages: room.chat });
+      broadcastLobby(buildLobbyState());
       log.info(`用户 ${user.name} 加入房间 ${room.id}`);
       return;
     }
@@ -325,6 +348,7 @@ wss.on('connection', (ws) => {
       broadcastRoom(room.id, buildRoomState(room));
       send(ws, buildRoomState(room));
       send(ws, { event: 'chatHistory', scope: 'room', messages: room.chat });
+      broadcastLobby(buildLobbyState());
       log.info(`用户 ${user.name} 观看房间 ${room.id}`);
 
       // 如果游戏正在进行，发送当前游戏状态
