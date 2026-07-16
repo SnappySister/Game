@@ -651,9 +651,11 @@ class SichuanMahjongEngine {
     this.logs.push(`${player.name} 碰 ${tileLabel(tile)}`);
     this._log(`[engine] P${idx}碰P${fromIdx}的${tileLabel(tile)}, 手牌剩${player.hand.length}`);
 
-    // 从弃牌堆移除被碰的牌
+    // 从弃牌堆移除被碰的牌(全局discardPile + 出牌者discards，因该牌已进碰刻不在牌河)
     const di = this.discardPile.findIndex(t => t.suit === tile.suit && t.rank === tile.rank);
     if (di !== -1) this.discardPile.splice(di, 1);
+    const ddi = this.players[fromIdx].discards.findIndex(t => t.suit === tile.suit && t.rank === tile.rank);
+    if (ddi !== -1) this.players[fromIdx].discards.splice(ddi, 1);
 
     this.currentPlayer = idx;
     this.pendingTile = null;
@@ -684,6 +686,8 @@ class SichuanMahjongEngine {
     this._log(`[engine] P${idx}明杠P${fromIdx}的${tileLabel(tile)}, 手牌剩${player.hand.length}`);
     const di = this.discardPile.findIndex(t => t.suit === tile.suit && t.rank === tile.rank);
     if (di !== -1) this.discardPile.splice(di, 1);
+    const ddi = this.players[fromIdx].discards.findIndex(t => t.suit === tile.suit && t.rank === tile.rank);
+    if (ddi !== -1) this.players[fromIdx].discards.splice(ddi, 1);
 
     if (!this.players[fromIdx].isHu) {
       this.players[fromIdx].score -= 2;
@@ -856,6 +860,11 @@ class SichuanMahjongEngine {
           this.logs.push(`${player.name} 杠上炮转移 ${this.players[fromIdx].name} 杠钱 +${gangTransfer}`);
         }
       }
+      // 点炮的牌已进胡家手牌，从点炮者牌河移除(抢杠胡时牌不在discards，findIndex返回-1自动跳过)
+      const ddi = this.players[fromIdx].discards.findIndex(t => t.suit === tile.suit && t.rank === tile.rank);
+      if (ddi !== -1) this.players[fromIdx].discards.splice(ddi, 1);
+      const dpi = this.discardPile.findIndex(t => t.suit === tile.suit && t.rank === tile.rank);
+      if (dpi !== -1) this.discardPile.splice(dpi, 1);
     }
     player.score += gained;
     player.fanDetail = { totalFan, fans, baseScore, isZimo, gangTransfer };

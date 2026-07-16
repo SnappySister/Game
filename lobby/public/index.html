@@ -1752,9 +1752,9 @@ function suitName(s) {
   return { wan: '万', tiao: '条', tong: '筒' }[s] || s;
 }
 function tileFaceHTML(t, size) {
-  const color = { wan: '#c0392b', tiao: '#27ae60', tong: '#2980b9' }[t.suit] || '#333';
   const cls = size ? ' mj-tf-' + size : '';
-  return `<span class="mj-tile-face${cls}" style="color:${color}"><span class="mj-tf-rank">${t.rank}</span><span class="mj-tf-suit">${suitName(t.suit)}</span></span>`;
+  // 用真实麻将牌图片，命名 suit_rank.png（wan_1/tong_5/tiao_8）
+  return `<img class="mj-tile-face${cls}" src="tiles/${t.suit}_${t.rank}.png" alt="${t.rank}${suitName(t.suit)}" draggable="false">`;
 }
 function tileLabel(t) {
   return t.rank + suitName(t.suit);
@@ -1819,11 +1819,12 @@ function renderMahjongState(s) {
   $('#mahjong-status').textContent = statusText;
   $('#mahjong-deck-count').textContent = s.deckCount;
 
-  // 自己的信息（名字+胡+分数），定缺由 dingque-tip 单独带颜色显示，避免重复
+  // 自己的信息（名字+胡+胡的牌+分数），定缺由 dingque-tip 单独带颜色显示，避免重复
   const selfInfo = $('#mahjong-self-info');
   if (selfInfo && me.name) {
     const huMark = me.isHu ? '<span class="seat-hu">胡</span>' : '';
-    selfInfo.innerHTML = `<b>${me.name}</b>${huMark} | <b style="color:#f1c40f">${me.score}分</b>`;
+    const huTileHtml = (me.isHu && me.huTile) ? '<span class="seat-hu-tile">' + tileFaceHTML(me.huTile) + '</span>' : '';
+    selfInfo.innerHTML = `<b>${me.name}</b>${huMark}${huTileHtml} | <b style="color:#f1c40f">${me.score}分</b>`;
     selfInfo.style.display = '';
   }
 
@@ -1876,10 +1877,17 @@ function renderMahjongState(s) {
     $('#mj-area-right').style.display = 'none';
   }
 
-  // 渲染弃牌堆
-  $('#mahjong-discards').innerHTML = s.discardPile.map(t =>
-    '<div class="mj-tile">' + tileFaceHTML(t, 'sm') + '</div>'
-  ).join('');
+  // 渲染弃牌堆：按玩家分区，每人打出的牌单独一行(标注名字)
+  const discardBox = $('#mahjong-discards');
+  if (discardBox) {
+    discardBox.innerHTML = s.players.map((p, i) => {
+      const tiles = (p.discards || []).map(t =>
+        '<div class="mj-tile">' + tileFaceHTML(t, 'sm') + '</div>'
+      ).join('');
+      const label = i === myGameIndex ? '我' : p.name;
+      return `<div class="mj-discard-row"><span class="mj-discard-name">${label}</span><div class="mj-discard-tiles">${tiles}</div></div>`;
+    }).join('');
+  }
 
   // 日志
   const log = $('#mahjong-log');
