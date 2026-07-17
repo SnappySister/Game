@@ -681,6 +681,20 @@
 <script>
 /* ==================== 全局 ==================== */
 let ws = null, myName = '', currentView = 'login', currentRoomId = null, currentGameType = '';
+
+// 预加载麻将牌图片，避免出牌/摸牌重建DOM时图片闪烁
+(function preloadTiles() {
+  const suits = ['wan', 'tiao', 'tong'];
+  for (const suit of suits) {
+    for (let r = 1; r <= 9; r++) {
+      const img = new Image();
+      img.src = `tiles/${suit}_${r}.png`;
+    }
+  }
+  const back = new Image();
+  back.src = 'tiles/back.png';
+})();
+
 let myHand = [], gameState = null, myGameIndex = 0, isSpectator = false;
 let discardMode = false, discardTarget = 0, selectedToDiscard = [];
 let skillSelectMode = false;
@@ -1818,6 +1832,8 @@ function renderMahjongState(s) {
   }
   $('#mahjong-status').textContent = statusText;
   $('#mahjong-deck-count').textContent = s.deckCount;
+  // 轮到自己出牌时状态栏醒目提示(闪动)
+  $('#mahjong-status').classList.toggle('my-turn-alert', isMyTurn);
 
   // 自己的信息（名字+胡+胡的牌+分数），定缺由 dingque-tip 单独带颜色显示，避免重复
   const selfInfo = $('#mahjong-self-info');
@@ -1948,15 +1964,43 @@ function renderMahjongHand() {
   const box = $('#mahjong-self-hand');
   const tingBox = $('#mahjong-ting-hint');
   if (!box) return;
-  if (isSpectator || !myMahjongHand.length) {
-    box.innerHTML = '';
-    if (tingBox) tingBox.style.display = 'none';
-    return;
-  }
   const s = mahjongState;
   const me = s && s.players[myGameIndex];
-  const isExchange = s && s.phase === 'exchange';
   const isMyTurn = s && s.phase === 'playing' && s.currentPlayer === myGameIndex;
+
+  // 听牌提示：独立缓存，避免与手牌重建耦合
+  if (tingBox) {
+    const showTing = mahjongTingTiles && mahjongTingTiles.length > 0 && !me.isHu && s && s.phase === 'playing';
+    const tingSig = showTing ? JSON.stringify(mahjongTingTiles) : 'none';
+    if (tingBox._lastSig !== tingSig) {
+      if (showTing) {
+        tingBox.innerHTML = `<span class="ting-label">听牌</span>${mahjongTingTiles.map(t => tileFaceHTML(t, 'sm')).join('')}`;
+        tingBox.style.display = 'flex';
+      } else {
+        tingBox.style.display = 'none';
+      }
+      tingBox._lastSig = tingSig;
+    }
+  }
+
+  if (isSpectator || !myMahjongHand.length) {
+    box.innerHTML = '';
+    box._lastSig = '';
+    return;
+  }
+  // 手牌签名缓存：内容/选中状态没变就跳过重建，避免出牌摸牌时整片闪烁
+  const sig = JSON.stringify({
+    hand: myMahjongHand,
+    sel: selectedMahjongTile ? selectedMahjongTile.idx : -1,
+    ex: mahjongExchangeSelected,
+    turn: isMyTurn,
+    phase: s && s.phase
+  });
+  if (box._lastSig === sig) {
+    return;
+  }
+  box._lastSig = sig;
+  const isExchange = s && s.phase === 'exchange';
   const canSelect = isMyTurn && !me.isHu;
 
   let html = '';
@@ -1974,15 +2018,6 @@ function renderMahjongHand() {
       `</div>`;
   });
   box.innerHTML = html;
-
-  // 听牌提示
-  if (tingBox && mahjongTingTiles && mahjongTingTiles.length > 0 && !me.isHu && s && s.phase === 'playing') {
-    const tilesHtml = mahjongTingTiles.map(t => tileFaceHTML(t, 'sm')).join('');
-    tingBox.innerHTML = `<span class="ting-label">听牌</span>${tilesHtml}`;
-    tingBox.style.display = 'flex';
-  } else if (tingBox) {
-    tingBox.style.display = 'none';
-  }
 
   if (isExchange) {
     box.querySelectorAll('.mj-hand-tile.clickable').forEach(el => {

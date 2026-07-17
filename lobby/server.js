@@ -70,13 +70,18 @@ const server = http.createServer((req, res) => {
   fs.readFile(p, (err, data) => {
     if (err) { res.writeHead(404); res.end(); }
     else {
-      // 禁止缓存：确保玩家始终拿到最新前端(版本号校验才有效)
-      res.writeHead(200, {
-        'Content-Type': MIME[path.extname(p)] || 'text/plain',
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      });
+      const ext = path.extname(p);
+      const headers = { 'Content-Type': MIME[ext] || 'text/plain' };
+      if (ext === '.png' || ext === '.jpg' || ext === '.webp' || ext === '.gif') {
+        // 图片长缓存：消除牌面重建闪烁，改图会升版本号触发刷新
+        headers['Cache-Control'] = 'public, max-age=31536000, immutable';
+      } else {
+        // HTML/JS/CSS 不缓存：确保玩家拿到最新前端(版本号校验有效)
+        headers['Cache-Control'] = 'no-store, no-cache, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+      res.writeHead(200, headers);
       res.end(data);
     }
   });
