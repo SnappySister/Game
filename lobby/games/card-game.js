@@ -37,6 +37,7 @@ class CardGameEngine {
     this.turn = -1;
     this.logs = [];
     this.ended = false;
+    this._turnStarted = false; // 当前回合是否已开始(断线挂起时为false)
   }
 
   start() {
@@ -57,6 +58,7 @@ class CardGameEngine {
     this.logs.push(`${this.players[second].name} 获得后手硬币（+1水晶）`);
 
     this._beginTurn(this.turn);
+    this._turnStarted = true;
     this._broadcastAll();
   }
 
@@ -669,6 +671,15 @@ class CardGameEngine {
       this.logs.push(`${pp.name} 触发【囤积】，存入${pp.mana}水晶(储蓄${pp.manaSavings})`);
     }
     this.turn = (this.turn + 1) % 2;
+    // 下一个玩家断线则挂起(不开始其回合)，等重连后 playerReconnected 触发 _beginTurn
+    if (this.players[this.turn].disconnected) {
+      this._turnStarted = false;
+      this.logs.push(`${this.players[this.turn].name} 断线中，等待重连...`);
+      this._broadcastAll();
+      this._checkEnd();
+      return;
+    }
+    this._turnStarted = true;
     this._beginTurn(this.turn);
     this._broadcastAll();
     this._checkEnd();
@@ -691,13 +702,38 @@ class CardGameEngine {
     }
   }
 
+  // 断线：仅标记暂停，不判负，等宽限期内重连
   playerDisconnected(idx) {
+    if (this.ended || idx < 0 || idx >= this.players.length) return;
+    const p = this.players[idx];
+    if (!p || p.hp <= 0) return;
+    p.disconnected = true;
+    this.logs.push(`${p.name} 断线，等待重连...`);
+    this._broadcastAll();
+  }
+
+  // 重连：清除断线标记，若轮到该玩家且回合未开始则补开始回合
+  playerReconnected(idx) {
+    if (idx < 0 || idx >= this.players.length) return;
+    const p = this.players[idx];
+    if (!p) return;
+    p.disconnected = false;
+    this.logs.push(`${p.name} 已重连`);
+    if (this.turn === idx && !this._turnStarted && !this.ended) {
+      this._turnStarted = true;
+      this._beginTurn(idx);
+    }
+    this._broadcastAll();
+  }
+
+  // 宽限期超时：真正判负(原 playerDisconnected 逻辑)
+  playerForceOut(idx) {
     if (this.ended || idx < 0 || idx >= this.players.length) return;
     const p = this.players[idx];
     if (!p || p.hp <= 0) return;
     p.hp = 0;
     p.disconnected = true;
-    this.logs.push(`${p.name} 离开，自动判负`);
+    this.logs.push(`${p.name} 超时未重连，自动判负`);
     this._broadcastAll();
     this._checkEnd();
   }

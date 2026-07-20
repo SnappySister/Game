@@ -264,12 +264,11 @@ class SichuanMahjongEngine {
     // 出牌后清掉新牌标记，让放大效果消失
     for (const t of player.hand) t.isNew = false;
 
-    // 检查其他人是否可胡这张牌
+    // 检查其他人是否可胡这张牌(断线玩家也作为候选，游戏挂起等其重连)
     const huCandidates = [];
     for (let i = 0; i < this.players.length; i++) {
       if (i === idx) continue;
       if (this.players[i].isHu) continue;
-      if (this.players[i].disconnected) continue;
       const testHand = [...this.players[i].hand, tile];
       const hasDingqueInMelds = this.players[i].melds.some(m => m.tiles.some(t => t.suit === this.players[i].dingque));
       if (!hasDingqueInMelds && this._canHu(testHand, this.players[i].dingque)) {
@@ -300,7 +299,6 @@ class SichuanMahjongEngine {
     for (let i = 0; i < this.players.length; i++) {
       if (i === idx) continue;
       if (this.players[i].isHu) continue;
-      if (this.players[i].disconnected) continue;
 
       const canGang = this._canMingGang(i, tile);
       const canPeng = this._canPeng(i, tile);
@@ -470,7 +468,8 @@ class SichuanMahjongEngine {
 
     let next = (this.currentPlayer + 1) % this.players.length;
     let loops = 0;
-    while ((this.players[next].isHu || this.players[next].disconnected) && loops < this.players.length) {
+    // 只跳过已胡玩家，不跳过断线玩家(轮到断线玩家则摸牌后挂起等重连)
+    while (this.players[next].isHu && loops < this.players.length) {
       next = (next + 1) % this.players.length;
       loops++;
     }
@@ -1314,25 +1313,50 @@ class SichuanMahjongEngine {
   }
 
   /* ==================== 断线 ==================== */
+  // 断线：仅标记暂停，不判负(不设isHu)，等宽限期内重连
   playerDisconnected(idx) {
     if (this.ended || idx < 0 || idx >= this.players.length) { this._log(`[engine] P${idx}断线忽略: ended=${this.ended}`); return; }
     const p = this.players[idx];
     if (!p || p.isHu) { this._log(`[engine] P${idx}断线忽略: 不存在或已胡`); return; }
     p.disconnected = true;
+    this.logs.push(`${p.name} 断线，等待重连...`);
+    this._log(`[engine] P${idx}断线暂停, phase=${this.phase}`);
+    this._broadcastAll();
+  }
+
+  // 重连：清除断线标记，补发挂起的 actionRequest
+  playerReconnected(idx) {
+    if (idx < 0 || idx >= this.players.length) return;
+    const p = this.players[idx];
+    if (!p) return;
+    p.disconnected = false;
+    this.logs.push(`${p.name} 已重连`);
+    this._log(`[engine] P${idx}重连, phase=${this.phase}`);
+    this._broadcastAll();
+    // 若处于等待该玩家操作阶段，补发 actionRequest
+    if (this.phase === 'waitAction' && this.waitingPlayers.includes(idx) && !p.isHu) {
+      this._resendActionRequest(idx);
+    }
+  }
+
+  // 宽限期超时：真正判负(原 playerDisconnected 逻辑)
+  playerForceOut(idx) {
+    if (this.ended || idx < 0 || idx >= this.players.length) { this._log(`[engine] P${idx}超时忽略: ended=${this.ended}`); return; }
+    const p = this.players[idx];
+    if (!p || p.isHu) { this._log(`[engine] P${idx}超时忽略: 不存在或已胡`); return; }
+    p.disconnected = true;
     p.isHu = true;
-    this.logs.push(`${p.name} 离开，自动退出`);
-    this._log(`[engine] P${idx}断线, 自动设为已胡, phase=${this.phase}`);
+    this.logs.push(`${p.name} 超时未重连，自动退出`);
+    this._log(`[engine] P${idx}超时判负, 设为已胡`);
 
     if (this._shouldEnd()) {
       this._endGame();
       return;
     }
-
     if (this.phase === 'waitAction' && this.waitingPlayers.includes(idx)) {
       this._handleAction(idx, { action: 'pass' });
       return;
     }
-
     if (this.phase === 'playing' && this.currentPlayer === idx) {
       const tile = p.hand.find(t => t.suit !== p.dingque) || p.hand[0];
       if (tile) {
@@ -1340,8 +1364,47 @@ class SichuanMahjongEngine {
         return;
       }
     }
-
     this._broadcastAll();
+  }
+
+  // 重连后补发 actionRequest：根据上下文重算可执行动作
+  _resendActionRequest(idx) {
+    const p = this.players[idx];
+    if (!p || p.isHu) return;
+    const tile = this.pendingTile;
+    // 自摸/自杠场景：waitingPlayers 只有自己且是当前出牌人(摸牌后)
+    if (this.waitingPlayers.length === 1 && this.waitingPlayers[0] === idx && this.currentPlayer === idx) {
+      const hasDingqueInMelds = p.melds.some(m => m.tiles.some(t => t.suit === p.dingque));
+      const canHu = !hasDingqueInMelds && this._canHu(p.hand, p.dingque);
+      const anGangList = this._canAnGang(idx);
+      const jiaGangList = this._canJiaGang(idx);
+      const actions = [];
+      if (canHu) actions.push('hu');
+      actions.push('pass');
+      const reason = canHu ? 'zimo' : 'selfGang';
+      this._send(idx, { event: 'actionRequest', actions, tile: p.lastDrawn || tile, isZimo: canHu, reason, anGangList, jiaGangList });
+      this._log(`[engine] P${idx}重连补发自摸/自杠动作请求`);
+      return;
+    }
+    // 点炮/碰/杠场景：基于 pendingTile 重算
+    if (tile) {
+      const hasDingqueInMelds = p.melds.some(m => m.tiles.some(t => t.suit === p.dingque));
+      const canHu = !hasDingqueInMelds && this._canHu([...p.hand, tile], p.dingque);
+      const canPeng = this._canPeng(p.hand, tile);
+      const canMingGang = this._canMingGang(p.hand, tile);
+      const actions = [];
+      if (canHu) actions.push('hu');
+      if (canPeng) actions.push('peng');
+      if (canMingGang) actions.push('gang');
+      if (actions.length === 0) actions.push('pass');
+      else actions.push('pass');
+      let reason = 'hu';
+      if (canPeng && canMingGang) reason = 'peng_gang';
+      else if (canPeng) reason = 'peng';
+      else if (canMingGang) reason = 'minggang';
+      this._send(idx, { event: 'actionRequest', actions, tile, reason });
+      this._log(`[engine] P${idx}重连补发点炮/碰/杠动作请求`);
+    }
   }
 
   /* ==================== 状态广播 ==================== */

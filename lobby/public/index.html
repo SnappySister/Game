@@ -683,7 +683,30 @@
 
 <script>
 /* ==================== 全局 ==================== */
-let ws = null, myName = '', currentView = 'login', currentRoomId = null, currentGameType = '';
+let ws = null, myName = '', myUserId = null, currentView = 'login', currentRoomId = null, currentGameType = '';
+
+// 登录态持久化：存 name+userId+时间戳到 localStorage，刷新页面可自动重连
+// 有效期 130 秒(略大于服务端 120s 宽限期)，超时视为失效
+const SESSION_KEY = 'mj_session';
+const SESSION_TTL = 130000;
+function saveSession() {
+  if (myName && myUserId != null) {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ name: myName, userId: myUserId, ts: Date.now() }));
+  }
+}
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (Date.now() - s.ts > SESSION_TTL) { localStorage.removeItem(SESSION_KEY); return null; } // 超时失效
+    return s;
+  } catch (e) { return null; }
+}
+function clearSession() { localStorage.removeItem(SESSION_KEY); }
+// 页面加载时尝试恢复会话(用于刷新自动重连)
+const savedSession = loadSession();
+if (savedSession) { myName = savedSession.name; myUserId = savedSession.userId; }
 
 // 预加载麻将牌图片，避免出牌/摸牌重建DOM时图片闪烁
 (function preloadTiles() {
@@ -794,7 +817,7 @@ function connect() {
     heartbeatMiss = 0;
     // 重连后若已登录过，自动重新登录(服务端close时已删除旧user)
     if (myName) {
-      send({ type: 'setName', name: myName, clientVersion: window.GAME_VERSION || '1.0.0', reconnect: true });
+      send({ type: 'setName', name: myName, clientVersion: window.GAME_VERSION || '1.0.0', reconnect: true, userId: myUserId });
     }
     hideReconnect();
     startHeartbeat();
@@ -856,7 +879,14 @@ function handleMessage(d) {
   }
   if (d.event === 'named') {
     myName = d.name;
+    if (d.userId != null) myUserId = d.userId;
+    saveSession(); // 登录成功，持久化会话供刷新重连
     showView('#view-lobby');
+  }
+  if (d.event === 'reconnected') {
+    // 断线重连成功：服务端会随后下发 roomState + gameStarted，这里先记录上下文
+    currentRoomId = d.roomId;
+    currentGameType = d.gameType;
   }
   if (d.event === 'lobbyState') {
     $('#lobby-online-count').textContent = d.online.length;
@@ -951,7 +981,8 @@ function handleMessage(d) {
       const readyMark = d.ready.includes(p.id) ? ' ✅' : '';
       const chId = selMap[p.id];
       const chTag = chId && chMap[chId] ? ` <span class="room-char">${chMap[chId].emoji} ${chMap[chId].name}</span>` : '';
-      return `<div class="room-player ${p.name===myName?'me':''}">${p.name} ${p.id===d.players[0]?.id?'(房主)':''}${chTag}${readyMark}</div>`;
+      const reconnectMark = p.reconnecting ? ' <span class="reconnect-mark">⏳重连中</span>' : '';
+      return `<div class="room-player ${p.name===myName?'me':''}">${p.name} ${p.id===d.players[0]?.id?'(房主)':''}${chTag}${readyMark}${reconnectMark}</div>`;
     }).join('');
     $('#room-spectator-list').innerHTML = d.spectators.map(s => `<div>${s.name}</div>`).join('') || '<div class="empty">暂无</div>';
 
@@ -1423,8 +1454,8 @@ function renderGameState(s) {
 function updateArea(id, p) {
   if (!p) return;
   const el = $('#' + id);
-  el.querySelector('.name').textContent = p.name + (p.disconnected ? ' (已离开)' : '');
-  el.querySelector('.name').style.color = p.disconnected ? '#e74c3c' : '';
+  el.querySelector('.name').textContent = p.name + (p.disconnected ? ' (重连中...)' : '');
+  el.querySelector('.name').style.color = p.disconnected ? '#f39c12' : '';
   el.querySelector('.hp-val').textContent = p.hp + '/' + p.maxHp;
   el.querySelector('.shield-val').textContent = p.shield;
   el.querySelector('.poison-val').textContent = p.poison;
@@ -1828,6 +1859,7 @@ function renderMahjongSeat(s, idx) {
   const huMark = p.isHu ? '胡' : '';
   const huTileHtml = (p.isHu && p.huTile) ? '<span class="seat-hu-tile">' + tileFaceHTML(p.huTile) + '</span>' : '';
   const dealerMark = p.isDealer ? '庄' : '';
+  const reconnectMark = p.disconnected ? '<span class="seat-reconnect">⏳重连</span>' : '';
   const currentClass = p.isCurrent ? ' current' : '';
 
   let meldsHtml = '';
@@ -1854,7 +1886,7 @@ function renderMahjongSeat(s, idx) {
   return '<div class="mj-seat' + currentClass + '">' +
     '<div class="mj-seat-hand">' + backsHtml + '<span class="mj-back-count">' + p.handSize + '</span></div>' +
     '<div class="mj-seat-info">' +
-      '<div class="mj-seat-name"><b>' + p.name + '</b>' + (huMark ? '<span class="seat-hu">胡</span>' : '') + huTileHtml + (dealerMark ? '<span class="seat-dealer">庄</span>' : '') + '</div>' +
+      '<div class="mj-seat-name"><b>' + p.name + '</b>' + (huMark ? '<span class="seat-hu">胡</span>' : '') + huTileHtml + (dealerMark ? '<span class="seat-dealer">庄</span>' : '') + reconnectMark + '</div>' +
       '<div class="mj-seat-detail">' + dq + ' | ' + p.score + '分</div>' +
     '</div>' +
     '<div class="mj-seat-melds">' + meldsHtml + '</div>' +

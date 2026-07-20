@@ -45,6 +45,9 @@ const log = {
 /* ==================== 数据模型 ==================== */
 const users = new Map();       // ws -> { id, name, state, roomId, gameIndex }
 const rooms = new Map();       // roomId -> Room
+const pendingReconnects = new Map(); // userId -> { user, roomId, gameIndex, timer, disconnectAt } 断线待重连会话
+const RECONNECT_GRACE_MS = 120000;  // 断线宽限期 120 秒
+const RECONNECT_GAMES = new Set(['mahjong', 'card']); // 支持断线重连的游戏
 let lobbyChat = [];            // {name, text, time}
 let nextUserId = 1;
 let nextRoomId = 1;
@@ -164,14 +167,15 @@ function buildRoomList(gameType) {
 }
 
 function buildRoomState(room) {
-  const pNames = room.players.map(uid => {
-    for (const [, u] of users) if (u.id === uid) return { name: u.name, id: u.id };
-    return { name: '?', id: uid };
-  });
-  const sNames = room.spectators.map(uid => {
-    for (const [, u] of users) if (u.id === uid) return { name: u.name, id: u.id };
-    return { name: '?', id: uid };
-  });
+  // 查找玩家信息：优先 users，其次 pendingReconnects(断线待重连)，并标记 reconnecting
+  const findUserInfo = (uid) => {
+    for (const [, u] of users) if (u.id === uid) return { name: u.name, id: u.id, reconnecting: false };
+    const pr = pendingReconnects.get(uid);
+    if (pr) return { name: pr.user.name, id: uid, reconnecting: true };
+    return { name: '?', id: uid, reconnecting: false };
+  };
+  const pNames = room.players.map(findUserInfo);
+  const sNames = room.spectators.map(findUserInfo);
   const allReady = room.players.length > 0 && room.players.every(uid => room.ready.has(uid));
   return {
     event: 'roomState', id: room.id, name: room.name, gameType: room.gameType, players: pNames, spectators: sNames,
@@ -220,10 +224,36 @@ wss.on('connection', (ws) => {
         log.warn(`版本不匹配: 客户端=${msg.clientVersion} 服务端=${VERSION} 用户=${(msg.name||'').trim()}`);
         send(ws, { event: 'versionMismatch', client: msg.clientVersion, server: VERSION });
       }
+      // 断线重连识别：带 userId 且在宽限期内，恢复原游戏会话
+      if (msg.reconnect && msg.userId != null && pendingReconnects.has(msg.userId)) {
+        const pr = pendingReconnects.get(msg.userId);
+        pendingReconnects.delete(msg.userId);
+        clearTimeout(pr.timer);
+        const room = rooms.get(pr.roomId);
+        if (room && room.gameInstance && room.status === 'playing' && room.players.includes(pr.user.id)) {
+          const playerIdx = room.gameInstance.players.findIndex(p => p.id === pr.user.id);
+          pr.user.state = 'playing'; // roomId/gameIndex 保持不变
+          users.set(ws, pr.user);    // 新 ws 绑定回原 user
+          send(ws, { event: 'named', name: pr.user.name, userId: pr.user.id });
+          send(ws, { event: 'reconnected', roomId: room.id, gameType: room.gameType });
+          send(ws, buildRoomState(room));
+          send(ws, { event: 'gameStarted', roomId: room.id, gameType: room.gameType });
+          if (playerIdx >= 0 && typeof room.gameInstance.playerReconnected === 'function') {
+            room.gameInstance.playerReconnected(playerIdx);
+          }
+          broadcastRoom(room.id, buildRoomState(room));
+          broadcastLobby(buildLobbyState());
+          log.info(`用户 ${pr.user.name} 重连成功 (uid=${pr.user.id})`);
+          return;
+        }
+        // 房间已不在/游戏已结束，按普通登录处理，清空旧会话
+        pr.user.roomId = null; pr.user.gameIndex = -1;
+        log.info(`用户 ${pr.user.name} 重连时房间已不在，转为普通登录`);
+      }
       const name = (msg.name || '').trim().slice(0, 12) || '匿名';
       const id = nextUserId++;
       users.set(ws, { id, name, state: 'lobby', roomId: null, gameIndex: -1 });
-      send(ws, { event: 'named', name: name });
+      send(ws, { event: 'named', name: name, userId: id });
       send(ws, buildLobbyState());
       send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
       broadcastLobby(buildLobbyState());
@@ -625,6 +655,7 @@ wss.on('connection', (ws) => {
       if (typeof room.gameInstance.stop === 'function') {
         room.gameInstance.stop();
       }
+      clearPendingReconnectsByRoom(room.id); // 游戏被结束，断线玩家不再重连
       room.gameInstance = null;
       room.status = 'waiting';
       room.ready.clear();
@@ -657,16 +688,64 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     const user = users.get(ws);
-    if (user) {
-      log.info(`用户断开: ${user.name}`);
-      if (user.roomId) leaveRoomInternal(user.id);
-      users.delete(ws);
-      broadcastLobby(buildLobbyState());
-    } else {
-      log.debug('匿名连接断开');
+    if (!user) { log.debug('匿名连接断开'); return; }
+    users.delete(ws);
+    log.info(`用户断开: ${user.name}`);
+
+    // 麻将/卡牌游戏中断线：进入120秒宽限期，不立即离开房间
+    if (user.roomId) {
+      const room = rooms.get(user.roomId);
+      if (room && room.status === 'playing' && room.gameInstance && RECONNECT_GAMES.has(room.gameType) && room.players.includes(user.id)) {
+        const playerIdx = room.gameInstance.players.findIndex(p => p.id === user.id);
+        if (playerIdx >= 0) {
+          room.gameInstance.playerDisconnected(playerIdx); // 仅暂停(引擎改造后)
+          pendingReconnects.set(user.id, {
+            user, roomId: user.roomId, gameIndex: user.gameIndex,
+            timer: setTimeout(() => onReconnectTimeout(user.id), RECONNECT_GRACE_MS),
+            disconnectAt: Date.now()
+          });
+          log.info(`用户 ${user.name} 游戏中断线，进入${RECONNECT_GRACE_MS/1000}s宽限期`);
+          broadcastRoom(room.id, buildRoomState(room));
+          broadcastLobby(buildLobbyState());
+          return;
+        }
+      }
+      leaveRoomInternal(user.id); // 非游戏中/不支持重连的游戏 → 原逻辑
     }
+    broadcastLobby(buildLobbyState());
   });
 });
+
+// 断线宽限期超时：真正判负并移出房间
+function onReconnectTimeout(userId) {
+  const pr = pendingReconnects.get(userId);
+  if (!pr) return;
+  pendingReconnects.delete(userId);
+  const room = rooms.get(pr.roomId);
+  if (!room || !room.gameInstance || !room.players.includes(userId)) {
+    broadcastLobby(buildLobbyState());
+    return;
+  }
+  const playerIdx = room.gameInstance.players.findIndex(p => p.id === userId);
+  if (playerIdx >= 0) {
+    log.warn(`用户 ${pr.user.name} ${RECONNECT_GRACE_MS/1000}s未重连，强制判负`);
+    // 调用引擎的强制判负(原 playerDisconnected 逻辑)
+    if (typeof room.gameInstance.playerForceOut === 'function') room.gameInstance.playerForceOut(playerIdx);
+    else room.gameInstance.playerDisconnected(playerIdx);
+  }
+  leaveRoomInternal(userId);
+  broadcastLobby(buildLobbyState());
+}
+
+// 清理某房间的所有待重连会话(房间删除/游戏结束时调用)
+function clearPendingReconnectsByRoom(roomId) {
+  for (const [uid, pr] of pendingReconnects) {
+    if (pr.roomId === roomId) {
+      clearTimeout(pr.timer);
+      pendingReconnects.delete(uid);
+    }
+  }
+}
 
 function leaveRoomInternal(userId) {
   let userObj = null;
@@ -697,6 +776,7 @@ function leaveRoomInternal(userId) {
 
   if (room.players.length === 0 && room.spectators.length === 0) {
     room.chat = [];
+    clearPendingReconnectsByRoom(room.id); // 房间删除，清理待重连会话
     rooms.delete(room.id);
   } else {
     if (room.ownerId === userId && room.players.length > 0) room.ownerId = room.players[0];
