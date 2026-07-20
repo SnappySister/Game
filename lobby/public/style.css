@@ -2,6 +2,23 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Microsoft YaHei", sans-serif; overflow: hidden; }
 #app { display: flex; flex-direction: column; height: 100vh; }
+/* 重连状态提示条：固定顶部，醒目黄底 */
+.reconnect-bar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: #f39c12;
+  color: #fff;
+  text-align: center;
+  padding: 6px;
+  font-size: 13px;
+  font-weight: bold;
+  z-index: 9999;
+  animation: rc-blink 1s ease-in-out infinite;
+}
+@keyframes rc-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
 .view {
   display: none;
   flex-direction: column;

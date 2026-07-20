@@ -10,6 +10,9 @@
 <body>
 <div id="app">
 
+<!-- 重连状态提示条 -->
+<div id="reconnect-bar" class="reconnect-bar" style="display:none">连接中...</div>
+
 <!-- ==================== 登录页 ==================== -->
 <div id="view-login" class="view">
   <div class="login-box">
@@ -771,20 +774,64 @@ function showView(id) {
 }
 
 /* ==================== WebSocket ==================== */
+let reconnectDelay = 1000;     // 重连退避延迟，指数增长
+let heartbeatTimer = null;     // 心跳定时器
+let heartbeatMiss = 0;         // 心跳未响应次数
+function showReconnect(text) {
+  const bar = $('#reconnect-bar');
+  if (bar) { bar.textContent = text; bar.style.display = 'block'; }
+}
+function hideReconnect() {
+  const bar = $('#reconnect-bar');
+  if (bar) bar.style.display = 'none';
+}
 function connect() {
+  showReconnect('连接中...');
+  try { ws && ws.close && ws.close(); } catch (e) {}
   ws = new WebSocket('ws://' + location.host);
-  ws.onopen = () => {};
+  ws.onopen = () => {
+    reconnectDelay = 1000;       // 连上后重置退避
+    heartbeatMiss = 0;
+    // 重连后若已登录过，自动重新登录(服务端close时已删除旧user)
+    if (myName) {
+      send({ type: 'setName', name: myName, clientVersion: window.GAME_VERSION || '1.0.0', reconnect: true });
+    }
+    hideReconnect();
+    startHeartbeat();
+  };
   ws.onmessage = (e) => {
     const d = JSON.parse(e.data);
+    if (d.event === 'pong') { heartbeatMiss = 0; return; }  // 心跳响应
     handleMessage(d);
   };
+  ws.onerror = () => { /* 由 onclose 兜底重连 */ };
   ws.onclose = () => {
-    setTimeout(connect, 2000);
+    stopHeartbeat();
+    showReconnect('连接断开，重连中...');
+    setTimeout(connect, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 1.5, 10000);  // 指数退避，上限10秒
   };
+}
+// 心跳：每15秒发ping，连续3次无响应则判定僵死、强制重连
+function startHeartbeat() {
+  stopHeartbeat();
+  heartbeatTimer = setInterval(() => {
+    if (!ws || ws.readyState !== 1) return;
+    send({ type: 'ping' });
+    heartbeatMiss++;
+    if (heartbeatMiss >= 3) {
+      // 连接僵死(如手机熄屏后唤醒)，主动断开触发重连
+      try { ws.close(); } catch (e) {}
+    }
+  }, 15000);
+}
+function stopHeartbeat() {
+  if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+  heartbeatMiss = 0;
 }
 connect();
 
-function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+function send(obj) { if (ws && ws.readyState === 1) { try { ws.send(JSON.stringify(obj)); } catch (e) {} } }
 
 /* 打开对应游戏的规则弹窗（大厅/房间列表页复用游戏内规则） */
 function openGameRule(gameType) {

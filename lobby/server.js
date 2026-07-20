@@ -210,6 +210,9 @@ wss.on('connection', (ws) => {
     try { msg = JSON.parse(raw); } catch (e) { log.warn(`收到非法 JSON: ${raw.slice(0,200)}`); return; }
     const user = users.get(ws);
 
+    /* ---------- 心跳 ---------- */
+    if (msg.type === 'ping') { send(ws, { event: 'pong' }); return; }
+
     /* ---------- 登录 ---------- */
     if (msg.type === 'setName') {
       // 版本校验：客户端版本与服务端不一致时记录日志并提示更新（不强制断开，避免误伤）
