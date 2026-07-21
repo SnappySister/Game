@@ -60,6 +60,8 @@ addColumnIfMissing('accounts', 'losses', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('accounts', 'draws', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('accounts', 'title', "TEXT DEFAULT NULL");        // 称号(玩家自定义文字)
 addColumnIfMissing('accounts', 'name_color', "TEXT DEFAULT NULL");  // 彩名颜色(如 #f1c40f)
+addColumnIfMissing('accounts', 'vip_level', "INTEGER NOT NULL DEFAULT 0");   // VIP等级(0=无,1=月卡)
+addColumnIfMissing('accounts', 'vip_expire', "INTEGER NOT NULL DEFAULT 0");  // VIP到期时间戳(ms)
 
 /* ==================== 账号 CRUD ==================== */
 const stmtGetByUsername = db.prepare('SELECT * FROM accounts WHERE username = ?');
@@ -69,6 +71,8 @@ const stmtInsertAccount = db.prepare(
 );
 const stmtUpdateNickname = db.prepare('UPDATE accounts SET nickname = ? WHERE id = ?');
 const stmtUpdateAppearance = db.prepare('UPDATE accounts SET title = ?, name_color = ? WHERE id = ?');
+const stmtSetVip = db.prepare('UPDATE accounts SET vip_level = 1, vip_expire = ? WHERE id = ?');
+const stmtClearVip = db.prepare('UPDATE accounts SET vip_level = 0, vip_expire = 0 WHERE id = ?');
 
 // 注册：返回 {id, username, nickname} 或抛错(用户名重复)
 function createAccount(username, password, nickname) {
@@ -108,6 +112,39 @@ function updateAppearance(accountId, title, nameColor) {
   const info = stmtUpdateAppearance.run(title, nameColor, accountId);
   if (info.changes === 0) return null;
   return getAccountById(accountId);
+}
+
+/* ==================== VIP ==================== */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// 开通/续费VIP：在已有expire基础上加天数(续费不损失剩余时间)
+function setVip(accountId, days) {
+  const acc = getAccountById(accountId);
+  if (!acc) return null;
+  const now = Date.now();
+  const base = (acc.vip_expire && acc.vip_expire > now) ? acc.vip_expire : now;
+  const newExpire = base + days * DAY_MS;
+  stmtSetVip.run(newExpire, accountId);
+  return getAccountById(accountId);
+}
+
+// 取消VIP
+function clearVip(accountId) {
+  stmtClearVip.run(accountId);
+  return getAccountById(accountId);
+}
+
+// 查VIP状态：{level, expire, active} active=vip_level>0 && expire>now
+function getVipStatus(accountId) {
+  const acc = getAccountById(accountId);
+  if (!acc) return { level: 0, expire: 0, active: false };
+  const now = Date.now();
+  const active = (acc.vip_level || 0) > 0 && (acc.vip_expire || 0) > now;
+  // 过期了但 level 还没清：清掉
+  if (!active && (acc.vip_level || 0) > 0) {
+    stmtClearVip.run(accountId);
+  }
+  return { level: active ? acc.vip_level : 0, expire: acc.vip_expire || 0, active };
 }
 
 /* ==================== 会话 session ==================== */
@@ -208,13 +245,13 @@ function getAccountStats(accountId, recentLimit = 10) {
 function getLeaderboard(scope = 'total', limit = 50) {
   // 总榜/周榜/月榜按 accounts.elo；分游戏榜按该游戏胜率(需有该游戏对局)
   if (scope === 'total') {
-    return db.prepare('SELECT nickname, elo, wins, losses, draws, title, name_color as nameColor FROM accounts WHERE (wins+losses+draws) > 0 ORDER BY elo DESC, wins DESC LIMIT ?').all(limit);
+    return db.prepare("SELECT nickname, elo, wins, losses, draws, title, name_color as nameColor, (vip_level>0 AND vip_expire>?) as vipActive FROM accounts WHERE (wins+losses+draws) > 0 ORDER BY elo DESC, wins DESC LIMIT ?").all(Date.now(), limit);
   }
   if (scope === 'weekly' || scope === 'monthly') {
     const days = scope === 'weekly' ? 7 : 30;
     const since = Date.now() - days * 24 * 3600 * 1000;
     return db.prepare(
-      `SELECT a.nickname, a.title, a.name_color as nameColor,
+      `SELECT a.nickname, a.title, a.name_color as nameColor, (a.vip_level>0 AND a.vip_expire>?) as vipActive,
          SUM(CASE WHEN r.result='win' THEN 1 ELSE 0 END) as wins,
          SUM(CASE WHEN r.result='loss' THEN 1 ELSE 0 END) as losses,
          SUM(CASE WHEN r.result='draw' THEN 1 ELSE 0 END) as draws,
@@ -222,20 +259,20 @@ function getLeaderboard(scope = 'total', limit = 50) {
        FROM records r JOIN accounts a ON r.account_id = a.id
        WHERE r.played_at >= ?
        GROUP BY r.account_id ORDER BY elo_gain DESC LIMIT ?`
-    ).all(since, limit);
+    ).all(Date.now(), since, limit);
   }
   // 分游戏榜：该游戏胜场数排序(玩得多且赢得多靠前)
   const validGames = ['mahjong', 'card', 'poker', 'monopoly'];
   if (!validGames.includes(scope)) return [];
   return db.prepare(
-    `SELECT a.nickname, a.elo, a.title, a.name_color as nameColor,
+    `SELECT a.nickname, a.elo, a.title, a.name_color as nameColor, (a.vip_level>0 AND a.vip_expire>?) as vipActive,
        SUM(CASE WHEN r.result='win' THEN 1 ELSE 0 END) as wins,
        SUM(CASE WHEN r.result='loss' THEN 1 ELSE 0 END) as losses,
        COUNT(*) as games
      FROM records r JOIN accounts a ON r.account_id = a.id
      WHERE r.game_type = ?
      GROUP BY r.account_id ORDER BY wins DESC, games DESC LIMIT ?`
-  ).all(scope, limit);
+  ).all(Date.now(), scope, limit);
 }
 
 module.exports = {
@@ -246,6 +283,9 @@ module.exports = {
   getAccountByUsername,
   updateNickname,
   updateAppearance,
+  setVip,
+  clearVip,
+  getVipStatus,
   createSession,
   verifySession,
   deleteSession,

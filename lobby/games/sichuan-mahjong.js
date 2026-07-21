@@ -1424,6 +1424,7 @@ class SichuanMahjongEngine {
         name: p.name,
         title: p.title || null,
         nameColor: p.nameColor || null,
+        vipActive: !!p.vipActive,
         index: i,
         handSize: p.hand.length,
         discards: p.discards,

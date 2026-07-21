@@ -473,6 +473,7 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
 }
 .chat-messages div { margin-bottom: 6px; word-break: break-all; }
 .chat-name { color: #3498db; font-weight: bold; }
+.chat-text-vip { color: #f1c40f; text-shadow: 0 0 4px rgba(241,196,15,0.5); }
 .chat-time { color: #666; font-size: 11px; margin-left: 4px; }
 .chat-input-row {
   display: flex;
@@ -757,6 +758,39 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
 }
 .color-swatch.selected { border-color: #fff; }
 .color-swatch:hover { border-color: #aaa; }
+
+/* VIP 外观特效 */
+.title-badge.vip {
+  background: linear-gradient(135deg, #f1c40f, #f39c12, #e67e22);
+  box-shadow: 0 0 6px rgba(241,196,15,0.8);
+  animation: vip-glow 1.5s ease-in-out infinite;
+  font-weight: bold;
+}
+.nick.vip {
+  text-shadow: 0 0 6px rgba(241,196,15,0.6);
+}
+.vip-crown { font-size: 12px; margin-right: 2px; }
+@keyframes vip-glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(241,196,15,0.5); }
+  50% { box-shadow: 0 0 10px rgba(241,196,15,1); }
+}
+
+/* VIP 上线广播 toast */
+.vip-toast {
+  position: fixed;
+  top: 50px; left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #f1c40f, #e67e22);
+  color: #fff;
+  padding: 10px 24px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: bold;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  transition: opacity .5s;
+  display: none;
+}
 
 /* ===== 更新公告 ===== */
 .changelog-version { margin-bottom: 16px; }

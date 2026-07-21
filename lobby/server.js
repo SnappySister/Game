@@ -133,7 +133,7 @@ function buildLobbyState() {
   const online = [];
   for (const [, u] of users) {
     // 所有已登录用户都算在线(含大厅/房间/游戏内)，断开的已从 users 删除
-    const entry = { name: u.name, state: u.state, title: u.title || null, nameColor: u.nameColor || null };
+    const entry = { name: u.name, state: u.state, title: u.title || null, nameColor: u.nameColor || null, vipActive: !!u.vipActive };
     if (u.roomId) {
       const room = rooms.get(u.roomId);
       if (room) {
@@ -178,10 +178,10 @@ function buildRoomList(gameType) {
 function buildRoomState(room) {
   // 查找玩家信息：优先 users，其次 pendingReconnects(断线待重连)，并标记 reconnecting
   const findUserInfo = (uid) => {
-    for (const [, u] of users) if (u.id === uid) return { name: u.name, id: u.id, reconnecting: false, title: u.title || null, nameColor: u.nameColor || null };
+    for (const [, u] of users) if (u.id === uid) return { name: u.name, id: u.id, reconnecting: false, title: u.title || null, nameColor: u.nameColor || null, vipActive: !!u.vipActive };
     const pr = pendingReconnects.get(uid);
-    if (pr) return { name: pr.user.name, id: uid, reconnecting: true, title: pr.user.title || null, nameColor: pr.user.nameColor || null };
-    return { name: '?', id: uid, reconnecting: false, title: null, nameColor: null };
+    if (pr) return { name: pr.user.name, id: uid, reconnecting: true, title: pr.user.title || null, nameColor: pr.user.nameColor || null, vipActive: !!pr.user.vipActive };
+    return { name: '?', id: uid, reconnecting: false, title: null, nameColor: null, vipActive: false };
   };
   const pNames = room.players.map(findUserInfo);
   const sNames = room.spectators.map(findUserInfo);
@@ -194,12 +194,12 @@ function buildRoomState(room) {
   };
 }
 
-function addChat(scope, roomId, name, text) {
-  const t = { name, text, time: nowStr() };
+function addChat(scope, roomId, user, text) {
+  const t = { name: user.name, text, time: nowStr(),
+    title: user.title || null, nameColor: user.nameColor || null, vipActive: !!user.vipActive };
   if (scope === 'lobby') {
     lobbyChat.push(t);
     if (lobbyChat.length > 50) lobbyChat.shift();
-    // 大厅聊天广播给所有已连接用户（即使他们在房间/游戏里也能收到）
     const s = JSON.stringify({ event: 'chat', scope: 'lobby', ...t });
     for (const [cws] of users) {
       if (cws.readyState === 1) cws.send(s);
@@ -244,7 +244,7 @@ wss.on('connection', (ws, req) => {
           const playerIdx = room.gameInstance.players.findIndex(p => p.id === pr.user.id);
           pr.user.state = 'playing';
           users.set(ws, pr.user);
-          send(ws, { event: 'named', name: pr.user.name, userId: pr.user.id, token: pr.user.token || null, isGuest: !!pr.user.isGuest, title: pr.user.title || null, nameColor: pr.user.nameColor || null });
+          send(ws, { event: 'named', name: pr.user.name, userId: pr.user.id, token: pr.user.token || null, isGuest: !!pr.user.isGuest, title: pr.user.title || null, nameColor: pr.user.nameColor || null, vipActive: !!pr.user.vipActive, vipLevel: pr.user.vipLevel || 0 });
           send(ws, { event: 'reconnected', roomId: room.id, gameType: room.gameType });
           send(ws, buildRoomState(room));
           send(ws, { event: 'gameStarted', roomId: room.id, gameType: room.gameType });
@@ -268,7 +268,7 @@ wss.on('connection', (ws, req) => {
           kickExistingSessions(acc.id, ws);  // 后登踢先登(极端情况)
           const userObj = makeUser(acc, msg.token);
           users.set(ws, userObj);
-          send(ws, { event: 'named', name: acc.nickname, userId: acc.id, token: msg.token, isGuest: false, title: userObj.title, nameColor: userObj.nameColor });
+          send(ws, { event: 'named', name: acc.nickname, userId: acc.id, token: msg.token, isGuest: false, title: userObj.title, nameColor: userObj.nameColor, vipActive: userObj.vipActive, vipLevel: userObj.vipLevel });
           send(ws, buildLobbyState());
           send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
           broadcastLobby(buildLobbyState());
@@ -302,7 +302,7 @@ wss.on('connection', (ws, req) => {
           kickExistingSessions(acc.id, ws);  // 后登踢先登(极少见，刚注册就重复)
           const userObj = makeUser({ ...acc, title: null, name_color: null }, token);
           users.set(ws, userObj);
-          send(ws, { event: 'named', name: nickname, userId: acc.id, token, isGuest: false, title: null, nameColor: null });
+          send(ws, { event: 'named', name: nickname, userId: acc.id, token, isGuest: false, title: null, nameColor: null, vipActive: false, vipLevel: 0 });
           send(ws, buildLobbyState());
           send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
           broadcastLobby(buildLobbyState());
@@ -323,11 +323,15 @@ wss.on('connection', (ws, req) => {
         kickExistingSessions(acc.id, ws);  // 后登踢先登
         const userObj = makeUser(acc, token);
         users.set(ws, userObj);
-        send(ws, { event: 'named', name: acc.nickname, userId: acc.id, token, isGuest: false, title: userObj.title, nameColor: userObj.nameColor });
+        send(ws, { event: 'named', name: acc.nickname, userId: acc.id, token, isGuest: false, title: userObj.title, nameColor: userObj.nameColor, vipActive: userObj.vipActive, vipLevel: userObj.vipLevel });
         send(ws, buildLobbyState());
         send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
         broadcastLobby(buildLobbyState());
-        log.info(`用户登录: ${username} -> uid=${acc.id}`);
+        // VIP上线广播
+        if (userObj.vipActive) {
+          broadcastLobby({ event: 'vipLogin', name: acc.nickname });
+        }
+        log.info(`用户登录: ${username} -> uid=${acc.id}${userObj.vipActive ? ' [VIP]' : ''}`);
         return;
       }
 
@@ -336,7 +340,7 @@ wss.on('connection', (ws, req) => {
       const id = nextUserId++;
       const userObj = { id, name, state: 'lobby', roomId: null, gameIndex: -1, isGuest: true, accountId: null, token: null, title: null, nameColor: null };
       users.set(ws, userObj);
-      send(ws, { event: 'named', name: name, userId: id, token: null, isGuest: true, title: null, nameColor: null });
+      send(ws, { event: 'named', name: name, userId: id, token: null, isGuest: true, title: null, nameColor: null, vipActive: false, vipLevel: 0 });
       send(ws, buildLobbyState());
       send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
       broadcastLobby(buildLobbyState());
@@ -350,7 +354,13 @@ wss.on('connection', (ws, req) => {
     if (msg.type === 'chat') {
       const scope = msg.scope === 'room' ? 'room' : 'lobby';
       const rid = scope === 'room' ? (user.roomId || null) : null;
-      addChat(scope, rid, user.name, (msg.text || '').trim().slice(0, 200));
+      // 注册用户实时刷新VIP状态(管理员开通后无需重登即生效)
+      if (!user.isGuest && user.accountId) {
+        const vip = db.getVipStatus(user.accountId);
+        user.vipActive = vip.active;
+        user.vipLevel = vip.level;
+      }
+      addChat(scope, rid, user, (msg.text || '').trim().slice(0, 200));
       return;
     }
 
@@ -621,7 +631,7 @@ wss.on('connection', (ws, req) => {
       const players = room.players.map((uid, i) => {
         for (const [ws2, u] of users) {
           if (u.id === uid) {
-            const p = { id: uid, name: u.name, ws: ws2, index: i, title: u.title || null, nameColor: u.nameColor || null };
+            const p = { id: uid, name: u.name, ws: ws2, index: i, title: u.title || null, nameColor: u.nameColor || null, vipActive: !!u.vipActive };
             if (room.gameType === 'card') p.character = (room.characterSelections && room.characterSelections[uid]) || null;
             return p;
           }
@@ -733,7 +743,7 @@ wss.on('connection', (ws, req) => {
         if (room.players.length !== room.gameInstance.playerCount) {
           const players = room.players.map((uid, i) => {
             for (const [ws2, u] of users) {
-              if (u.id === uid) return { id: uid, name: u.name, ws: ws2, index: i, title: u.title || null, nameColor: u.nameColor || null };
+              if (u.id === uid) return { id: uid, name: u.name, ws: ws2, index: i, title: u.title || null, nameColor: u.nameColor || null, vipActive: !!u.vipActive };
             }
           }).filter(Boolean);
           const sendToPlayer = wrapSendToPlayer(room, (pIdx, obj) => {
@@ -912,12 +922,14 @@ function checkRegisterLimit(ip) {
   return true;
 }
 
-// 构造注册用户的 user 对象(含外观字段 title/name_color)
+// 构造注册用户的 user 对象(含外观字段 title/name_color + VIP状态)
 function makeUser(acc, token) {
+  const vip = db.getVipStatus(acc.id);  // 顺带检查过期
   return {
     id: acc.id, name: acc.nickname, state: 'lobby', roomId: null, gameIndex: -1,
     isGuest: false, accountId: acc.id, token,
-    title: acc.title || null, nameColor: acc.name_color || null
+    title: acc.title || null, nameColor: acc.name_color || null,
+    vipLevel: vip.level, vipExpire: vip.expire, vipActive: vip.active
   };
 }
 

@@ -754,7 +754,7 @@
 
 <script>
 /* ==================== 全局 ==================== */
-let ws = null, myName = '', myUserId = null, myToken = null, myIsGuest = true, myTitle = null, myNameColor = null, currentView = 'login', currentRoomId = null, currentGameType = '';
+let ws = null, myName = '', myUserId = null, myToken = null, myIsGuest = true, myTitle = null, myNameColor = null, myVipActive = false, currentView = 'login', currentRoomId = null, currentGameType = '';
 
 // 登录态持久化：存 name+userId+token+isGuest+时间戳到 localStorage，刷新页面可自动重连
 // 注册用户 token 长期有效(7天)，游客仅 130 秒(对齐服务端宽限期)
@@ -888,6 +888,20 @@ function hideReconnect() {
   const bar = $('#reconnect-bar');
   if (bar) bar.style.display = 'none';
 }
+// VIP上线广播 toast
+function showVipToast(name) {
+  let toast = $('#vip-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'vip-toast';
+    toast.className = 'vip-toast';
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `✨ VIP玩家 <b>${name}</b> 上线了 ✨`;
+  toast.style.display = 'block';
+  toast.style.opacity = '1';
+  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.style.display = 'none', 500); }, 3000);
+}
 function connect() {
   showReconnect('连接中...');
   try { ws && ws.close && ws.close(); } catch (e) {}
@@ -981,6 +995,7 @@ function handleMessage(d) {
     myIsGuest = d.isGuest !== false;
     myTitle = d.title || null;
     myNameColor = d.nameColor || null;
+    myVipActive = !!d.vipActive;
     saveSession();
     updateAccountInfo();
     showView('#view-lobby');
@@ -1024,6 +1039,10 @@ function handleMessage(d) {
   if (d.event === 'leaderboard') {
     $('#leaderboard-content').innerHTML = renderLeaderboard(d.list, d.scope);
   }
+  if (d.event === 'vipLogin') {
+    // VIP上线广播：大厅顶部弹toast
+    showVipToast(d.name);
+  }
   if (d.event === 'lobbyState') {
     $('#lobby-online-count').textContent = d.online.length;
     $('#lobby-online-list').innerHTML = d.online.map(u => {
@@ -1038,7 +1057,7 @@ function handleMessage(d) {
         if (u.canJoin) action = `<button class="btn-online-join" data-rid="${u.roomId}">加入</button>`;
         else if (u.canSpectate) action = `<button class="btn-online-join" data-rid="${u.roomId}" data-sp="1">观战</button>`;
       }
-      return `<div class="online-row"><span class="online-name">${nameHTML(u.name, u.title, u.nameColor)}</span>${info}${action}</div>`;
+      return `<div class="online-row"><span class="online-name">${nameHTML(u.name, u.title, u.nameColor, u.vipActive)}</span>${info}${action}</div>`;
     }).join('');
     // 一键加入/观战按钮
     document.querySelectorAll('#lobby-online-list .btn-online-join').forEach(b => {
@@ -1118,7 +1137,7 @@ function handleMessage(d) {
       const chId = selMap[p.id];
       const chTag = chId && chMap[chId] ? ` <span class="room-char">${chMap[chId].emoji} ${chMap[chId].name}</span>` : '';
       const reconnectMark = p.reconnecting ? ' <span class="reconnect-mark">⏳重连中</span>' : '';
-      return `<div class="room-player ${p.name===myName?'me':''}">${nameHTML(p.name, p.title, p.nameColor)} ${p.id===d.players[0]?.id?'(房主)':''}${chTag}${readyMark}${reconnectMark}</div>`;
+      return `<div class="room-player ${p.name===myName?'me':''}">${nameHTML(p.name, p.title, p.nameColor, p.vipActive)} ${p.id===d.players[0]?.id?'(房主)':''}${chTag}${readyMark}${reconnectMark}</div>`;
     }).join('');
     $('#room-spectator-list').innerHTML = d.spectators.map(s => `<div>${s.name}</div>`).join('') || '<div class="empty">暂无</div>';
 
@@ -1378,9 +1397,11 @@ function renderChat(scope) {
   if (list.length === 0) {
     msgs.innerHTML = `<div style="color:#888;font-size:12px;margin-bottom:6px;">--- ${scope === 'lobby' ? '大厅' : '房间'}频道 ---</div>`;
   } else {
-    msgs.innerHTML = list.map(m =>
-      `<div><span style="color:${m.scope==='lobby'?'#2ecc71':'#e67e22'};font-size:11px;margin-right:4px;">[${m.scope==='lobby'?'大厅':'房间'}]</span><span class="chat-name">${m.name}</span>: ${m.text} <span class="chat-time">${m.time}</span></div>`
-    ).join('');
+    msgs.innerHTML = list.map(m => {
+      const nameHtml = nameHTML(m.name, m.title, m.nameColor, m.vipActive);
+      const textCls = m.vipActive ? ' class="chat-text-vip"' : '';
+      return `<div><span style="color:${m.scope==='lobby'?'#2ecc71':'#e67e22'};font-size:11px;margin-right:4px;">[${m.scope==='lobby'?'大厅':'房间'}]</span><span class="chat-name">${nameHtml}</span>: <span${textCls}>${m.text}</span> <span class="chat-time">${m.time}</span></div>`;
+    }).join('');
   }
   msgs.scrollTop = msgs.scrollHeight;
 }
@@ -1393,7 +1414,7 @@ function addChatMessage(d) {
     if (chatScope === scope && chatPanelVisible()) renderChat(scope);
   } else if (d.event === 'chat') {
     const scope = d.scope || 'room';
-    const msg = { name: d.name, text: d.text, time: d.time, scope };
+    const msg = { name: d.name, text: d.text, time: d.time, scope, title: d.title || null, nameColor: d.nameColor || null, vipActive: !!d.vipActive };
     chatMessages[scope].push(msg);
     if (chatMessages[scope].length > 100) chatMessages[scope].shift();
     if (chatScope === scope && chatPanelVisible()) {
@@ -1499,7 +1520,7 @@ function updateAccountInfo() {
   const el = $('#account-info');
   if (!el) return;
   // 顶栏自己的名字也带称号+彩名
-  el.innerHTML = nameHTML(myName, myTitle, myNameColor) + (myIsGuest ? '(游客)' : '(账号)');
+  el.innerHTML = nameHTML(myName, myTitle, myNameColor, myVipActive) + (myIsGuest ? '(游客)' : '(账号)');
   const chgBtn = $('#btn-change-nickname');
   if (chgBtn) chgBtn.style.display = myIsGuest ? 'none' : '';
   const statsBtn = $('#btn-my-stats');
@@ -1534,10 +1555,11 @@ updateAccountInfo();
 /* ==================== 战绩 + 排行榜 ==================== */
 const GAME_NAMES = { mahjong: '麻将', card: '卡牌', poker: '德州', monopoly: '大富翁' };
 // 渲染带外观的名字(称号+彩名)：name=名字, title=称号, color=彩名颜色
-function nameHTML(name, title, color) {
-  const titleTag = title ? `<span class="title-badge">${title}</span>` : '';
+function nameHTML(name, title, color, vip) {
+  const vipCls = vip ? ' vip' : '';
+  const titleTag = title ? `<span class="title-badge${vipCls}">${title}</span>` : (vip ? '<span class="vip-crown">👑</span>' : '');
   const style = color ? ` style="color:${color}"` : '';
-  return `${titleTag}<span class="nick"${style}>${name}</span>`;
+  return `${titleTag}<span class="nick${vipCls}"${style}>${name}</span>`;
 }
 function renderStats(stats) {
   if (!stats) return '<p>暂无战绩</p>';
@@ -1580,7 +1602,7 @@ function renderLeaderboard(list, scope) {
     const rate = games > 0 ? Math.round((p.wins||0)/games*100) : 0;
     const eloVal = scope === 'weekly' || scope === 'monthly' ? (p.elo_gain||0) : (p.elo||0);
     const eloLabel = scope === 'weekly' || scope === 'monthly' ? '积分变化' : '积分';
-    html += `<div class="lb-row"><span class="lb-rank">${medal}</span><span class="lb-name">${nameHTML(p.nickname, p.title, p.nameColor)}</span><span class="lb-elo">${eloLabel}:${eloVal>0?'+':''}${eloVal}</span><span class="lb-detail">${p.wins||0}胜${p.losses||0}负(${rate}%)</span></div>`;
+    html += `<div class="lb-row"><span class="lb-rank">${medal}</span><span class="lb-name">${nameHTML(p.nickname, p.title, p.nameColor, p.vipActive)}</span><span class="lb-elo">${eloLabel}:${eloVal>0?'+':''}${eloVal}</span><span class="lb-detail">${p.wins||0}胜${p.losses||0}负(${rate}%)</span></div>`;
   });
   html += '</div>';
   return html;
@@ -1621,7 +1643,7 @@ function renderColorPicker() {
 }
 function updateAppearancePreview() {
   const t = $('#appearance-title').value.trim();
-  $('#appearance-preview').innerHTML = nameHTML(myName, t || null, pickedColor);
+  $('#appearance-preview').innerHTML = nameHTML(myName, t || null, pickedColor, myVipActive);
 }
 $('#btn-appearance').onclick = () => {
   $('#appearance-title').value = myTitle || '';
@@ -1784,7 +1806,7 @@ function renderGameState(s) {
 function updateArea(id, p) {
   if (!p) return;
   const el = $('#' + id);
-  el.querySelector('.name').innerHTML = nameHTML(p.name + (p.disconnected ? ' (重连中...)' : ''), p.title, p.disconnected ? '#f39c12' : p.nameColor);
+  el.querySelector('.name').innerHTML = nameHTML(p.name + (p.disconnected ? ' (重连中...)' : ''), p.title, p.disconnected ? '#f39c12' : p.nameColor, p.vipActive);
   el.querySelector('.name').style.color = '';
   el.querySelector('.hp-val').textContent = p.hp + '/' + p.maxHp;
   el.querySelector('.shield-val').textContent = p.shield;
@@ -2049,7 +2071,7 @@ function buildPokerPlayerHtml(p, s) {
   const disconnectTag = p.disconnected ? '<div style="color:#e74c3c;font-size:11px">已离开</div>' : '';
   return (
     '<div class="poker-player ' + (p.isCurrent ? 'current' : '') + ' ' + status + '">' +
-      '<div class="ppo-name">' + nameHTML(p.name, p.title, p.nameColor) + (p.isDealer ? ' <span class="dealer-badge">D</span>' : '') + '</div>' +
+      '<div class="ppo-name">' + nameHTML(p.name, p.title, p.nameColor, p.vipActive) + (p.isDealer ? ' <span class="dealer-badge">D</span>' : '') + '</div>' +
       '<div class="ppo-chips">' + p.chips + '</div>' +
       '<div class="ppo-bet">' + (p.bet > 0 ? '下注 ' + p.bet : (p.totalBet > 0 ? '已投 ' + p.totalBet : '')) + '</div>' +
       '<div class="ppo-cards">' + cardsHtml + '</div>' +
@@ -2216,7 +2238,7 @@ function renderMahjongSeat(s, idx) {
   return '<div class="mj-seat' + currentClass + '">' +
     '<div class="mj-seat-hand">' + backsHtml + '<span class="mj-back-count">' + p.handSize + '</span></div>' +
     '<div class="mj-seat-info">' +
-      '<div class="mj-seat-name">' + (p.title ? '<span class="title-badge">'+p.title+'</span>' : '') + '<b class="nick"' + (p.nameColor ? ' style="color:'+p.nameColor+'"' : '') + '>' + p.name + '</b>' + (huMark ? '<span class="seat-hu">胡</span>' : '') + huTileHtml + (dealerMark ? '<span class="seat-dealer">庄</span>' : '') + reconnectMark + '</div>' +
+      '<div class="mj-seat-name">' + (p.title ? '<span class="title-badge'+(p.vipActive?' vip':'')+'">'+p.title+'</span>' : (p.vipActive ? '<span class="vip-crown">👑</span>' : '')) + '<b class="nick'+(p.vipActive?' vip':'')+'"' + (p.nameColor ? ' style="color:'+p.nameColor+'"' : '') + '>' + p.name + '</b>' + (huMark ? '<span class="seat-hu">胡</span>' : '') + huTileHtml + (dealerMark ? '<span class="seat-dealer">庄</span>' : '') + reconnectMark + '</div>' +
       '<div class="mj-seat-detail">' + dq + ' | ' + p.score + '分</div>' +
     '</div>' +
     '<div class="mj-seat-melds">' + meldsHtml + '</div>' +
@@ -2249,7 +2271,7 @@ function renderMahjongState(s) {
   if (selfInfo && me.name) {
     const huMark = me.isHu ? '<span class="seat-hu">胡</span>' : '';
     const huTileHtml = (me.isHu && me.huTile) ? '<span class="seat-hu-tile">' + tileFaceHTML(me.huTile) + '</span>' : '';
-    selfInfo.innerHTML = `${me.title?'<span class="title-badge">'+me.title+'</span>':''}<b class="nick"${me.nameColor?' style="color:'+me.nameColor+'"':''}>${me.name}</b>${huMark}${huTileHtml} | <b style="color:#f1c40f">${me.score}分</b>`;
+    selfInfo.innerHTML = `${me.title?'<span class="title-badge'+(me.vipActive?' vip':'')+'">'+me.title+'</span>':(me.vipActive?'<span class="vip-crown">👑</span>':'')}<b class="nick${me.vipActive?' vip':''}"${me.nameColor?' style="color:'+me.nameColor+'"':''}>${me.name}</b>${huMark}${huTileHtml} | <b style="color:#f1c40f">${me.score}分</b>`;
     selfInfo.style.display = '';
   }
 
@@ -2849,7 +2871,7 @@ function renderMonopolyPlayers(s) {
     return `<div class="mono-player ${isCur?'active':''}" style="border-left-color:${ownerColor(i)}">
       <div class="mp-head">
         <span class="mp-token">${MONO_TOKENS[i%4]}</span>
-        <span class="mp-name">${nameHTML(p.name, p.title, p.nameColor)}${isCur?' ▶':''}</span>
+        <span class="mp-name">${nameHTML(p.name, p.title, p.nameColor, p.vipActive)}${isCur?' ▶':''}</span>
         <span class="mp-rank">#${rank}</span>
       </div>
       <div class="mp-stats">
