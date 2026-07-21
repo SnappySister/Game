@@ -709,6 +709,29 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
 .rule-table td:nth-child(2) { text-align: center; color: #2ecc71; font-weight: bold; }
 .rule-box button { display: block; margin: 14px auto 0; }
 
+/* 战绩页 */
+.stats-summary { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-bottom: 14px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 6px; }
+.stats-summary div { font-size: 13px; color: #aaa; }
+.stats-summary b { color: #f1c40f; font-size: 16px; }
+.stats-bygame { margin-bottom: 12px; }
+.stats-game { font-size: 13px; color: #ddd; margin: 3px 0; }
+.stats-recent { max-height: 200px; overflow-y: auto; }
+.stats-record { display: flex; gap: 12px; font-size: 12px; padding: 3px 0; border-bottom: 1px solid #0f3460; }
+.stats-record .rec-time { color: #7f8c8d; width: 90px; }
+.stats-record .rec-elo { margin-left: auto; color: #f1c40f; }
+
+/* 排行榜 */
+.lb-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; justify-content: center; }
+.lb-tab { padding: 5px 10px; background: #2c3e50; color: #aaa; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; margin: 0; }
+.lb-tab.active { background: #3498db; color: #fff; }
+.lb-list { max-height: 320px; overflow-y: auto; }
+.lb-row { display: flex; gap: 10px; align-items: center; font-size: 13px; padding: 6px 4px; border-bottom: 1px solid #0f3460; }
+.lb-rank { width: 32px; text-align: center; font-weight: bold; color: #f1c40f; }
+.lb-name { flex: 1; color: #ddd; }
+.lb-elo { color: #f1c40f; width: 90px; }
+.lb-detail { color: #7f8c8d; font-size: 11px; width: 110px; text-align: right; }
+.lb-empty { text-align: center; color: #7f8c8d; padding: 30px; }
+
 /* ===== 更新公告 ===== */
 .changelog-version { margin-bottom: 16px; }
 .changelog-title { font-size: 16px; color: #f1c40f; font-weight: bold; margin-bottom: 6px; }

@@ -52,6 +52,8 @@
     <h2>游戏大厅</h2>
     <div class="lobby-info">
       <span id="account-info" class="account-info"></span>
+      <button id="btn-my-stats" class="btn-account" style="display:none">战绩</button>
+      <button id="btn-leaderboard" class="btn-account">排行</button>
       <button id="btn-change-nickname" class="btn-account" style="display:none">改昵称</button>
       <button id="btn-logout" class="btn-account btn-logout">退出</button>
       <button id="btn-changelog" class="btn-changelog">📢</button>
@@ -172,6 +174,33 @@
     <h2>📢 更新公告</h2>
     <div id="changelog-content" class="rule-content"></div>
     <button id="close-changelog">知道了</button>
+  </div>
+</div>
+
+<!-- 战绩弹窗 -->
+<div id="stats-modal" class="modal" style="display:none">
+  <div class="modal-box rule-box">
+    <h2>📊 我的战绩</h2>
+    <div id="stats-content" class="rule-content"></div>
+    <button id="close-stats">关闭</button>
+  </div>
+</div>
+
+<!-- 排行榜弹窗 -->
+<div id="leaderboard-modal" class="modal" style="display:none">
+  <div class="modal-box rule-box">
+    <h2>🏆 排行榜</h2>
+    <div class="lb-tabs">
+      <button class="lb-tab active" data-scope="total">总榜</button>
+      <button class="lb-tab" data-scope="mahjong">麻将</button>
+      <button class="lb-tab" data-scope="card">卡牌</button>
+      <button class="lb-tab" data-scope="poker">德州</button>
+      <button class="lb-tab" data-scope="monopoly">大富翁</button>
+      <button class="lb-tab" data-scope="weekly">周榜</button>
+      <button class="lb-tab" data-scope="monthly">月榜</button>
+    </div>
+    <div id="leaderboard-content" class="rule-content"></div>
+    <button id="close-leaderboard">关闭</button>
   </div>
 </div>
 
@@ -961,6 +990,12 @@ function handleMessage(d) {
     // 重连失败后停止自动重连，避免无限循环
     if (ws) { try { ws.onclose = null; ws.close(); } catch (e) {} ws = null; }
   }
+  if (d.event === 'myStats') {
+    $('#stats-content').innerHTML = renderStats(d.stats);
+  }
+  if (d.event === 'leaderboard') {
+    $('#leaderboard-content').innerHTML = renderLeaderboard(d.list, d.scope);
+  }
   if (d.event === 'lobbyState') {
     $('#lobby-online-count').textContent = d.online.length;
     $('#lobby-online-list').innerHTML = d.online.map(u => {
@@ -1438,6 +1473,8 @@ function updateAccountInfo() {
   el.textContent = myName + (myIsGuest ? '(游客)' : '(账号)');
   const chgBtn = $('#btn-change-nickname');
   if (chgBtn) chgBtn.style.display = myIsGuest ? 'none' : '';  // 游客不能改昵称
+  const statsBtn = $('#btn-my-stats');
+  if (statsBtn) statsBtn.style.display = myIsGuest ? 'none' : '';  // 游客无战绩
 }
 // 改昵称
 $('#btn-change-nickname').onclick = () => {
@@ -1463,7 +1500,76 @@ $('#btn-logout').onclick = () => {
 // 页面加载时恢复账号信息显示
 updateAccountInfo();
 
-/* ==================== 大富翁按钮 ==================== */
+/* ==================== 战绩 + 排行榜 ==================== */
+const GAME_NAMES = { mahjong: '麻将', card: '卡牌', poker: '德州', monopoly: '大富翁' };
+function renderStats(stats) {
+  if (!stats) return '<p>暂无战绩</p>';
+  let html = `<div class="stats-summary">
+    <div class="stats-elo">积分 <b>${stats.elo}</b></div>
+    <div class="stats-rate">胜率 <b>${stats.winRate}%</b></div>
+    <div class="stats-total">总场次 <b>${stats.totalGames}</b></div>
+    <div class="stats-wld">胜${stats.wins} 负${stats.losses} 平${stats.draws}</div>
+  </div>`;
+  // 各游戏分别
+  if (stats.byGame && stats.byGame.length) {
+    html += '<p><b>各游戏：</b></p><div class="stats-bygame">';
+    stats.byGame.forEach(g => {
+      const total = g.wins + g.losses + g.draws;
+      const rate = total > 0 ? Math.round(g.wins / total * 100) : 0;
+      html += `<div class="stats-game">${GAME_NAMES[g.game_type] || g.game_type}：${g.wins}胜 ${g.losses}负 ${g.draws}平 (胜率${rate}%)</div>`;
+    });
+    html += '</div>';
+  }
+  // 最近10局
+  if (stats.recent && stats.recent.length) {
+    html += '<p><b>最近对局：</b></p><div class="stats-recent">';
+    stats.recent.forEach(r => {
+      const d = new Date(r.played_at);
+      const time = `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+      const resColor = r.result === 'win' ? '#2ecc71' : r.result === 'loss' ? '#e74c3c' : '#aaa';
+      const resText = r.result === 'win' ? '胜' : r.result === 'loss' ? '负' : '平';
+      html += `<div class="stats-record"><span class="rec-time">${time}</span><span>${GAME_NAMES[r.game_type]||r.game_type}</span><span style="color:${resColor}">${resText}</span><span class="rec-elo">${r.elo_change>0?'+':''}${r.elo_change}</span></div>`;
+    });
+    html += '</div>';
+  }
+  return html;
+}
+function renderLeaderboard(list, scope) {
+  if (!list || !list.length) return '<p class="lb-empty">暂无榜上数据，去打几局吧</p>';
+  let html = '<div class="lb-list">';
+  list.forEach((p, i) => {
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1);
+    const games = (p.wins||0) + (p.losses||0) + (p.draws||0);
+    const rate = games > 0 ? Math.round((p.wins||0)/games*100) : 0;
+    const eloVal = scope === 'weekly' || scope === 'monthly' ? (p.elo_gain||0) : (p.elo||0);
+    const eloLabel = scope === 'weekly' || scope === 'monthly' ? '积分变化' : '积分';
+    html += `<div class="lb-row"><span class="lb-rank">${medal}</span><span class="lb-name">${p.nickname}</span><span class="lb-elo">${eloLabel}:${eloVal>0?'+':''}${eloVal}</span><span class="lb-detail">${p.wins||0}胜${p.losses||0}负(${rate}%)</span></div>`;
+  });
+  html += '</div>';
+  return html;
+}
+// 战绩按钮
+$('#btn-my-stats').onclick = () => {
+  send({ type: 'getMyStats' });
+  $('#stats-modal').style.display = 'flex';
+};
+$('#close-stats').onclick = () => { $('#stats-modal').style.display = 'none'; };
+// 排行榜按钮
+let currentLbScope = 'total';
+$('#btn-leaderboard').onclick = () => {
+  send({ type: 'getLeaderboard', scope: currentLbScope });
+  $('#leaderboard-modal').style.display = 'flex';
+};
+$('#close-leaderboard').onclick = () => { $('#leaderboard-modal').style.display = 'none'; };
+document.querySelectorAll('.lb-tab').forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentLbScope = tab.dataset.scope;
+    send({ type: 'getLeaderboard', scope: currentLbScope });
+  };
+});
+
 $('#btn-monopoly-rule')?.addEventListener('click', () => { $('#monopoly-rule-modal').style.display = 'flex'; });
 $('#btn-monopoly-trade')?.addEventListener('click', () => { openMonopolyTrade(); });
 $('#btn-monopoly-leave')?.addEventListener('click', () => { leaveMonopoly(); });

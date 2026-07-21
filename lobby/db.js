@@ -36,7 +36,28 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_account ON sessions(account_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+CREATE TABLE IF NOT EXISTS records (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id INTEGER NOT NULL,
+  game_type TEXT NOT NULL,
+  result TEXT NOT NULL,
+  score_change INTEGER NOT NULL,
+  elo_change INTEGER NOT NULL,
+  played_at INTEGER NOT NULL,
+  FOREIGN KEY (account_id) REFERENCES accounts(id)
+);
+CREATE INDEX IF NOT EXISTS idx_records_account ON records(account_id);
+CREATE INDEX IF NOT EXISTS idx_records_time ON records(played_at);
 `);
+// accounts 加战绩字段(阶段2新增，老库容错：字段已存在则跳过)
+function addColumnIfMissing(table, col, def) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+  if (!cols.includes(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+}
+addColumnIfMissing('accounts', 'elo', 'INTEGER NOT NULL DEFAULT 1000');
+addColumnIfMissing('accounts', 'wins', 'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('accounts', 'losses', 'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('accounts', 'draws', 'INTEGER NOT NULL DEFAULT 0');
 
 /* ==================== 账号 CRUD ==================== */
 const stmtGetByUsername = db.prepare('SELECT * FROM accounts WHERE username = ?');
@@ -121,6 +142,92 @@ function cleanExpiredSessions() {
   return stmtCleanExpired.run(Date.now()).changes;
 }
 
+/* ==================== 战绩 records ==================== */
+const stmtInsertRecord = db.prepare(
+  'INSERT INTO records (account_id, game_type, result, score_change, elo_change, played_at) VALUES (?, ?, ?, ?, ?, ?)'
+);
+const stmtUpdateElo = db.prepare(
+  'UPDATE accounts SET elo = elo + ?, wins = wins + ?, losses = losses + ?, draws = draws + ? WHERE id = ?'
+);
+const stmtGetRecent = db.prepare(
+  'SELECT game_type, result, score_change, elo_change, played_at FROM records WHERE account_id = ? ORDER BY played_at DESC LIMIT ?'
+);
+const stmtGetStatsByGame = db.prepare(
+  `SELECT game_type,
+     SUM(CASE WHEN result='win' THEN 1 ELSE 0 END) as wins,
+     SUM(CASE WHEN result='loss' THEN 1 ELSE 0 END) as losses,
+     SUM(CASE WHEN result='draw' THEN 1 ELSE 0 END) as draws
+   FROM records WHERE account_id = ? GROUP BY game_type`
+);
+
+// 记录一局战绩：写 record + 更新 accounts 的 elo/胜负场(一个事务)
+function recordMatch(accountId, gameType, result, scoreChange, eloChange) {
+  const now = Date.now();
+  const tx = db.transaction(() => {
+    stmtInsertRecord.run(accountId, gameType, result, scoreChange, eloChange, now);
+    const w = result === 'win' ? 1 : 0;
+    const l = result === 'loss' ? 1 : 0;
+    const d = result === 'draw' ? 1 : 0;
+    stmtUpdateElo.run(eloChange, w, l, d, accountId);
+  });
+  tx();
+}
+
+// 个人战绩统计：总elo/胜负平 + 各游戏分别 + 最近N局
+function getAccountStats(accountId, recentLimit = 10) {
+  const acc = getAccountById(accountId);
+  if (!acc) return null;
+  const byGame = stmtGetStatsByGame.all(accountId);
+  const recent = stmtGetRecent.all(accountId, recentLimit);
+  const total = byGame.reduce((s, g) => ({
+    wins: s.wins + g.wins, losses: s.losses + g.losses, draws: s.draws + g.draws
+  }), { wins: 0, losses: 0, draws: 0 });
+  return {
+    nickname: acc.nickname,
+    elo: acc.elo,
+    totalGames: total.wins + total.losses + total.draws,
+    wins: total.wins, losses: total.losses, draws: total.draws,
+    winRate: (total.wins + total.losses + total.draws) > 0
+      ? Math.round(total.wins / (total.wins + total.losses + total.draws) * 100) : 0,
+    byGame,
+    recent
+  };
+}
+
+// 排行榜：scope = total/mahjong/card/poker/monopoly/weekly/monthly
+function getLeaderboard(scope = 'total', limit = 50) {
+  // 总榜/周榜/月榜按 accounts.elo；分游戏榜按该游戏胜率(需有该游戏对局)
+  if (scope === 'total') {
+    return db.prepare('SELECT nickname, elo, wins, losses, draws FROM accounts WHERE (wins+losses+draws) > 0 ORDER BY elo DESC, wins DESC LIMIT ?').all(limit);
+  }
+  if (scope === 'weekly' || scope === 'monthly') {
+    const days = scope === 'weekly' ? 7 : 30;
+    const since = Date.now() - days * 24 * 3600 * 1000;
+    return db.prepare(
+      `SELECT a.nickname,
+         SUM(CASE WHEN r.result='win' THEN 1 ELSE 0 END) as wins,
+         SUM(CASE WHEN r.result='loss' THEN 1 ELSE 0 END) as losses,
+         SUM(CASE WHEN r.result='draw' THEN 1 ELSE 0 END) as draws,
+         SUM(r.elo_change) as elo_gain
+       FROM records r JOIN accounts a ON r.account_id = a.id
+       WHERE r.played_at >= ?
+       GROUP BY r.account_id ORDER BY elo_gain DESC LIMIT ?`
+    ).all(since, limit);
+  }
+  // 分游戏榜：该游戏胜场数排序(玩得多且赢得多靠前)
+  const validGames = ['mahjong', 'card', 'poker', 'monopoly'];
+  if (!validGames.includes(scope)) return [];
+  return db.prepare(
+    `SELECT a.nickname, a.elo,
+       SUM(CASE WHEN r.result='win' THEN 1 ELSE 0 END) as wins,
+       SUM(CASE WHEN r.result='loss' THEN 1 ELSE 0 END) as losses,
+       COUNT(*) as games
+     FROM records r JOIN accounts a ON r.account_id = a.id
+     WHERE r.game_type = ?
+     GROUP BY r.account_id ORDER BY wins DESC, games DESC LIMIT ?`
+  ).all(scope, limit);
+}
+
 module.exports = {
   db,
   createAccount,
@@ -133,4 +240,7 @@ module.exports = {
   deleteSession,
   deleteSessionsByAccount,
   cleanExpiredSessions,
+  recordMatch,
+  getAccountStats,
+  getLeaderboard,
 };

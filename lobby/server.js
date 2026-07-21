@@ -479,6 +479,20 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
+    /* ---------- 战绩查询(仅注册用户) ---------- */
+    if (msg.type === 'getMyStats') {
+      if (user.isGuest || !user.accountId) { send(ws, { event: 'error', msg: '游客无战绩，请先注册账号' }); return; }
+      const stats = db.getAccountStats(user.accountId);
+      send(ws, { event: 'myStats', stats });
+      return;
+    }
+    if (msg.type === 'getLeaderboard') {
+      const scope = ['total', 'mahjong', 'card', 'poker', 'monopoly', 'weekly', 'monthly'].includes(msg.scope) ? msg.scope : 'total';
+      const list = db.getLeaderboard(scope, 50);
+      send(ws, { event: 'leaderboard', scope, list });
+      return;
+    }
+
     /* ---------- 观战 ---------- */
     if (msg.type === 'spectateRoom') {
       const room = rooms.get(msg.roomId);
@@ -597,12 +611,12 @@ wss.on('connection', (ws, req) => {
         }
       }).filter(Boolean);
 
-      const sendToPlayer = (pIdx, obj) => {
+      const sendToPlayer = wrapSendToPlayer(room, (pIdx, obj) => {
         const uid = room.players[pIdx];
         for (const [ws2, u] of users) {
           if (u.id === uid) { send(ws2, obj); break; }
         }
-      };
+      });
 
       // 德州/麻将保留上一局分数
       const prevChips = (room.gameType === 'poker' && room.gameInstance)
@@ -705,12 +719,12 @@ wss.on('connection', (ws, req) => {
               if (u.id === uid) return { id: uid, name: u.name, ws: ws2, index: i };
             }
           }).filter(Boolean);
-          const sendToPlayer = (pIdx, obj) => {
+          const sendToPlayer = wrapSendToPlayer(room, (pIdx, obj) => {
             const uid = room.players[pIdx];
             for (const [ws2, u] of users) {
               if (u.id === uid) { send(ws2, obj); break; }
             }
-          };
+          });
 
           if (room.gameType === 'poker') {
             const prevChips = room.gameInstance.players.map(p => ({ id: p.id, chips: p.chips }));
@@ -730,6 +744,7 @@ wss.on('connection', (ws, req) => {
           }
         }
 
+        room._recorded = false;  // 重置战绩标记，新局可重新记录
         room.gameInstance.start();
         room.players.forEach((uid, i) => {
           for (const [, u] of users) {
@@ -880,6 +895,96 @@ function checkRegisterLimit(ip) {
   return true;
 }
 
+// ELO 按名次加减分：1v1 胜+20负-20；多人局按人数套档位(第1+30/第2+10/第3-10/第4-30)
+const ELO_TABLE = {
+  2: [20, -20],
+  3: [30, 0, -30],
+  4: [30, 10, -10, -30]
+};
+function eloChangeByRank(playerCount, rank) {
+  // rank 从1开始；超出表范围的局数(5+)按4人档截断
+  const table = ELO_TABLE[Math.min(playerCount, 4)] || ELO_TABLE[4];
+  if (playerCount > 4) {
+    // 5人以上：第1+30，最后-30，中间按比例线性分布
+    if (rank === 1) return 30;
+    if (rank === playerCount) return -30;
+    const step = 60 / (playerCount - 1);
+    return Math.round(30 - step * (rank - 1));
+  }
+  return table[rank - 1] || 0;
+}
+
+// 一局结束写战绩：读 engine.players，按 gameType 算胜负/名次，只记注册用户
+function writeMatchRecord(room) {
+  const engine = room.gameInstance;
+  if (!engine || !engine.players) return;
+  const gameType = room.gameType;
+  const players = engine.players;
+  // 关联 accountId(跳过游客)
+  const enriched = players.map(p => {
+    let user = null;
+    for (const [, u] of users) { if (u.id === p.id) { user = u; break; } }
+    return { p, accountId: user && user.accountId };
+  }).filter(e => e.accountId);  // 只保留注册用户
+  if (enriched.length === 0) return;  // 全员游客，不记
+
+  // 算每人 scoreChange + 胜负 + 名次
+  const ranked = enriched.map(e => {
+    let scoreChange = 0, metric = 0;
+    if (gameType === 'mahjong' || gameType === 'poker') {
+      scoreChange = e.p.change || 0;  // 本局分数/筹码变化
+      metric = scoreChange;
+      // 主动离开/超时判负(disconnected)的玩家强制排最后
+      if (e.p.disconnected) metric = -99999;
+    } else if (gameType === 'card') {
+      scoreChange = e.p.hp > 0 ? 1 : -1;
+      metric = e.p.hp;  // hp 高的排前
+      if (e.p.disconnected) metric = -99999;
+    } else if (gameType === 'monopoly') {
+      // p.score 是名次(1..N)，metric 反过来让名次1排前
+      metric = -(e.p.score || 99);
+      scoreChange = e.p.netWorth || e.p.money || 0;
+    }
+    return { ...e, scoreChange, metric };
+  });
+  // 按 metric 降序排名
+  ranked.sort((a, b) => b.metric - a.metric);
+  ranked.forEach((e, i) => { e.rank = i + 1; });
+
+  // 只有注册用户参与排名(过滤后)，按注册用户数算 elo 档位
+  const n = ranked.length;
+  for (const e of ranked) {
+    // 胜负判定：第1名=win，最后一名=loss，中间=draw(2人局无中间)
+    // 例外：disconnected(判负退出)强制 loss
+    let result;
+    if (e.p.disconnected) {
+      result = 'loss';
+    } else if (n === 2) {
+      result = e.rank === 1 ? 'win' : 'loss';
+    } else {
+      result = e.rank === 1 ? 'win' : (e.rank === n ? 'loss' : 'draw');
+    }
+    const eloChange = eloChangeByRank(n, e.rank);
+    try {
+      db.recordMatch(e.accountId, gameType, result, e.scoreChange, eloChange);
+    } catch (err) {
+      log.error(`写战绩异常 accountId=${e.accountId}: ${err.message}`);
+    }
+  }
+  log.info(`房间 ${room.id} 战绩已记录(${gameType} ${n}名注册用户)`);
+}
+
+// 包装 sendToPlayer：拦截 over 事件，只第一次触发写战绩
+function wrapSendToPlayer(room, rawSend) {
+  return (pIdx, obj) => {
+    if (obj && obj.event === 'over' && !room._recorded) {
+      room._recorded = true;
+      try { writeMatchRecord(room); } catch (e) { log.error(`writeMatchRecord异常: ${e.stack||e.message}`); }
+    }
+    rawSend(pIdx, obj);
+  };
+}
+
 function leaveRoomInternal(userId) {
   let userObj = null;
   let room = null;
@@ -895,10 +1000,14 @@ function leaveRoomInternal(userId) {
     return;
   }
 
-  // 游戏中：先通知引擎弃牌处理，再移除
+  // 游戏中：主动离开=判负(playerForceOut触发_endGame记战绩)，断线由ws.on('close)单独处理(宽限期)
   if (room.status === 'playing' && room.gameInstance && room.players.includes(userId)) {
     const playerIdx = room.gameInstance.players.findIndex(p => p.id === userId);
-    if (playerIdx >= 0) room.gameInstance.playerDisconnected(playerIdx);
+    if (playerIdx >= 0) {
+      // 优先用 playerForceOut(判负)，无则回退 playerDisconnected
+      if (typeof room.gameInstance.playerForceOut === 'function') room.gameInstance.playerForceOut(playerIdx);
+      else room.gameInstance.playerDisconnected(playerIdx);
+    }
   }
 
   room.players = room.players.filter(id => id !== userId);
