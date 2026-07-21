@@ -17,8 +17,27 @@
 <div id="view-login" class="view">
   <div class="login-box">
     <h1>游戏大厅</h1>
-    <input id="nickname-input" type="text" placeholder="输入昵称 (最多12字)" maxlength="12">
-    <button id="login-btn">进入大厅</button>
+    <!-- 账号登录/注册表单 -->
+    <div id="login-form">
+      <input id="username-input" type="text" placeholder="用户名" maxlength="20">
+      <input id="password-input" type="password" placeholder="密码 (至少6位)" maxlength="40">
+      <input id="reg-nickname-input" type="text" placeholder="昵称(注册时填，游戏中显示)" maxlength="12" style="display:none">
+      <button id="login-btn">登录</button>
+      <button id="register-btn" style="display:none">注册</button>
+      <div class="login-links">
+        <a id="switch-to-register" href="javascript:void(0)">注册账号</a>
+        <span>·</span>
+        <a id="switch-to-guest" href="javascript:void(0)">游客进入</a>
+      </div>
+    </div>
+    <!-- 游客表单 -->
+    <div id="guest-form" style="display:none">
+      <input id="nickname-input" type="text" placeholder="输入昵称 (最多12字)" maxlength="12">
+      <button id="guest-btn">游客进入</button>
+      <div class="login-links">
+        <a id="switch-to-login" href="javascript:void(0)">账号登录</a>
+      </div>
+    </div>
     <div id="version-tag" class="version-tag">v1.0.0</div>
   </div>
   <div id="login-changelog" class="login-changelog">
@@ -32,7 +51,10 @@
   <div class="lobby-header">
     <h2>游戏大厅</h2>
     <div class="lobby-info">
-      <button id="btn-changelog" class="btn-changelog">📢 更新公告</button>
+      <span id="account-info" class="account-info"></span>
+      <button id="btn-change-nickname" class="btn-account" style="display:none">改昵称</button>
+      <button id="btn-logout" class="btn-account btn-logout">退出</button>
+      <button id="btn-changelog" class="btn-changelog">📢</button>
       在线: <span id="lobby-online-count">0</span>人
     </div>
   </div>
@@ -683,15 +705,18 @@
 
 <script>
 /* ==================== 全局 ==================== */
-let ws = null, myName = '', myUserId = null, currentView = 'login', currentRoomId = null, currentGameType = '';
+let ws = null, myName = '', myUserId = null, myToken = null, myIsGuest = true, currentView = 'login', currentRoomId = null, currentGameType = '';
 
-// 登录态持久化：存 name+userId+时间戳到 localStorage，刷新页面可自动重连
-// 有效期 130 秒(略大于服务端 120s 宽限期)，超时视为失效
+// 登录态持久化：存 name+userId+token+isGuest+时间戳到 localStorage，刷新页面可自动重连
+// 注册用户 token 长期有效(7天)，游客仅 130 秒(对齐服务端宽限期)
 const SESSION_KEY = 'mj_session';
-const SESSION_TTL = 130000;
+const GUEST_SESSION_TTL = 130000;   // 游客 130 秒
+const ACCOUNT_SESSION_TTL = 7 * 24 * 3600 * 1000;  // 注册用户 7 天
 function saveSession() {
   if (myName && myUserId != null) {
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ name: myName, userId: myUserId, ts: Date.now() }));
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
+      name: myName, userId: myUserId, token: myToken, isGuest: myIsGuest, ts: Date.now()
+    }));
   }
 }
 function loadSession() {
@@ -699,14 +724,20 @@ function loadSession() {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw);
-    if (Date.now() - s.ts > SESSION_TTL) { localStorage.removeItem(SESSION_KEY); return null; } // 超时失效
+    const ttl = s.isGuest === false ? ACCOUNT_SESSION_TTL : GUEST_SESSION_TTL;
+    if (Date.now() - s.ts > ttl) { localStorage.removeItem(SESSION_KEY); return null; }
     return s;
   } catch (e) { return null; }
 }
 function clearSession() { localStorage.removeItem(SESSION_KEY); }
 // 页面加载时尝试恢复会话(用于刷新自动重连)
 const savedSession = loadSession();
-if (savedSession) { myName = savedSession.name; myUserId = savedSession.userId; }
+if (savedSession) {
+  myName = savedSession.name;
+  myUserId = savedSession.userId;
+  myToken = savedSession.token || null;
+  myIsGuest = savedSession.isGuest !== false;  // 默认游客
+}
 
 // 预加载麻将牌图片，避免出牌/摸牌重建DOM时图片闪烁
 (function preloadTiles() {
@@ -817,7 +848,11 @@ function connect() {
     heartbeatMiss = 0;
     // 重连后若已登录过，自动重新登录(服务端close时已删除旧user)
     if (myName) {
-      send({ type: 'setName', name: myName, clientVersion: window.GAME_VERSION || '1.0.0', reconnect: true, userId: myUserId });
+      send({ type: 'setName', name: myName, clientVersion: window.GAME_VERSION || '1.0.0', reconnect: true, userId: myUserId, token: myToken, isGuest: myIsGuest });
+    } else if (ws._pendingLogin) {
+      // 退出登录后重新连接期间，用户已点登录按钮，连上后补发
+      send(ws._pendingLogin);
+      ws._pendingLogin = null;
     }
     hideReconnect();
     startHeartbeat();
@@ -854,7 +889,20 @@ function stopHeartbeat() {
 }
 connect();
 
-function send(obj) { if (ws && ws.readyState === 1) { try { ws.send(JSON.stringify(obj)); } catch (e) {} } }
+function send(obj) {
+  if (ws && ws.readyState === 1) { try { ws.send(JSON.stringify(obj)); return true; } catch (e) {} }
+  return false;
+}
+// 发送登录类消息：ws未连上时等连上后重发(退出登录后重新connect的过渡期)
+function sendLogin(obj) {
+  if (send(obj)) return;
+  if (ws && ws.readyState === 0) {
+    // 连接建立中，缓存请求，onopen后发送
+    ws._pendingLogin = obj;
+  } else {
+    alert('连接已断开，请刷新页面');
+  }
+}
 
 /* 打开对应游戏的规则弹窗（大厅/房间列表页复用游戏内规则） */
 function openGameRule(gameType) {
@@ -880,13 +928,38 @@ function handleMessage(d) {
   if (d.event === 'named') {
     myName = d.name;
     if (d.userId != null) myUserId = d.userId;
-    saveSession(); // 登录成功，持久化会话供刷新重连
+    myToken = d.token || null;
+    myIsGuest = d.isGuest !== false;
+    saveSession();
+    updateAccountInfo();
     showView('#view-lobby');
   }
   if (d.event === 'reconnected') {
     // 断线重连成功：服务端会随后下发 roomState + gameStarted，这里先记录上下文
     currentRoomId = d.roomId;
     currentGameType = d.gameType;
+  }
+  if (d.event === 'nicknameChanged') {
+    // 改昵称成功：更新本地名+session
+    myName = d.nickname;
+    saveSession();
+    updateAccountInfo();
+  }
+  if (d.event === 'kicked') {
+    // 被踢(后登踢先登)：提示并回登录页
+    clearSession();
+    myName = ''; myUserId = null; myToken = null; myIsGuest = true;
+    alert(d.reason || '你的账号在其他设备登录');
+    showView('#view-login');
+  }
+  if (d.event === 'reconnectFailed') {
+    // 重连失败(会话过期)：清session回登录页
+    clearSession();
+    myName = ''; myUserId = null; myToken = null; myIsGuest = true;
+    showView('#view-login');
+    $('#reconnect-bar').style.display = 'none';
+    // 重连失败后停止自动重连，避免无限循环
+    if (ws) { try { ws.onclose = null; ws.close(); } catch (e) {} ws = null; }
   }
   if (d.event === 'lobbyState') {
     $('#lobby-online-count').textContent = d.online.length;
@@ -1306,12 +1379,89 @@ document.querySelectorAll('.modal-box.rule-box').forEach(box => {
 /* ==================== 登录 ==================== */
 // 登录页填充版本号
 $('#version-tag').textContent = 'v' + (window.GAME_VERSION || '1.0.0');
+
+// 登录表单模式切换：login(默认) / register / guest
+function showLoginForm() {
+  $('#login-form').style.display = '';
+  $('#guest-form').style.display = 'none';
+  $('#username-input').style.display = '';
+  $('#password-input').style.display = '';
+  $('#reg-nickname-input').style.display = 'none';
+  $('#login-btn').style.display = '';
+  $('#register-btn').style.display = 'none';
+}
+function showRegisterForm() {
+  $('#login-form').style.display = '';
+  $('#guest-form').style.display = 'none';
+  $('#reg-nickname-input').style.display = '';
+  $('#login-btn').style.display = 'none';
+  $('#register-btn').style.display = '';
+}
+function showGuestForm() {
+  $('#login-form').style.display = 'none';
+  $('#guest-form').style.display = '';
+}
+// 登录
 $('#login-btn').onclick = () => {
+  const username = $('#username-input').value.trim();
+  const password = $('#password-input').value;
+  if (!username || !password) { alert('请输入用户名和密码'); return; }
+  sendLogin({ type: 'setName', mode: 'login', username, password, clientVersion: window.GAME_VERSION || '1.0.0' });
+};
+// 注册
+$('#register-btn').onclick = () => {
+  const username = $('#username-input').value.trim();
+  const password = $('#password-input').value;
+  const nickname = $('#reg-nickname-input').value.trim();
+  if (!username || !password) { alert('请输入用户名和密码'); return; }
+  if (password.length < 6) { alert('密码至少6位'); return; }
+  sendLogin({ type: 'setName', mode: 'register', username, password, nickname: nickname || username, clientVersion: window.GAME_VERSION || '1.0.0' });
+};
+// 游客
+$('#guest-btn').onclick = () => {
   const name = $('#nickname-input').value.trim();
   if (!name) { alert('请输入昵称'); return; }
-  send({ type: 'setName', name, clientVersion: window.GAME_VERSION || '1.0.0' });
+  sendLogin({ type: 'setName', mode: 'guest', name, clientVersion: window.GAME_VERSION || '1.0.0' });
 };
-$('#nickname-input').addEventListener('keypress', e => { if (e.key === 'Enter') $('#login-btn').click(); });
+// 切换链接
+$('#switch-to-register').onclick = showRegisterForm;
+$('#switch-to-guest').onclick = showGuestForm;
+$('#switch-to-login').onclick = showLoginForm;
+// 回车触发主按钮
+$('#password-input').addEventListener('keypress', e => { if (e.key === 'Enter') $('#login-btn').click(); });
+$('#nickname-input').addEventListener('keypress', e => { if (e.key === 'Enter') $('#guest-btn').click(); });
+
+/* ==================== 账号区：昵称显示/改昵称/退出登录 ==================== */
+function updateAccountInfo() {
+  const el = $('#account-info');
+  if (!el) return;
+  el.textContent = myName + (myIsGuest ? '(游客)' : '(账号)');
+  const chgBtn = $('#btn-change-nickname');
+  if (chgBtn) chgBtn.style.display = myIsGuest ? 'none' : '';  // 游客不能改昵称
+}
+// 改昵称
+$('#btn-change-nickname').onclick = () => {
+  const nickname = prompt('输入新昵称(1-12字)', myName);
+  if (nickname == null) return;
+  const n = nickname.trim();
+  if (!n) { alert('昵称不能为空'); return; }
+  send({ type: 'changeNickname', nickname: n });
+};
+// 退出登录
+$('#btn-logout').onclick = () => {
+  if (!confirm('确定退出登录？')) return;
+  send({ type: 'logout' });
+  // 主动退出：清session回登录页，停止心跳+断开旧连接+重新建立干净连接
+  clearSession();
+  myName = ''; myUserId = null; myToken = null; myIsGuest = true;
+  stopHeartbeat();
+  // 断开旧连接(阻止onclose重连)，然后重新connect建立新连接供登录使用
+  if (ws) { try { ws.onclose = null; ws.onmessage = null; ws.close(); } catch (e) {} ws = null; }
+  showView('#view-login');
+  connect();  // 重新建立连接，onopen时myName为空不会自动setName，等用户点登录
+};
+// 页面加载时恢复账号信息显示
+updateAccountInfo();
 
 /* ==================== 大富翁按钮 ==================== */
 $('#btn-monopoly-rule')?.addEventListener('click', () => { $('#monopoly-rule-modal').style.display = 'flex'; });

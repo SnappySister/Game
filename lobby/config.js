@@ -8,7 +8,7 @@ try { require('dotenv').config(); } catch (e) { /* dotenv 未装则跳过，依�
 
 const config = {
   PORT: parseInt(process.env.PORT) || 3456,
-  DB_PATH: process.env.DB_PATH || './lobby/data/game.db',
+  DB_PATH: process.env.DB_PATH || '',  // 留空则用 db.js 默认(lobby/data/game.db)；设绝对路径则覆盖
   SESSION_SECRET: process.env.SESSION_SECRET || 'dev-only-insecure-secret-change-me',
   SESSION_TTL_DAYS: parseInt(process.env.SESSION_TTL_DAYS) || 7,
   BCRYPT_ROUNDS: parseInt(process.env.BCRYPT_ROUNDS) || 10,

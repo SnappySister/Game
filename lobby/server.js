@@ -8,6 +8,8 @@ const SichuanMahjongEngine = require('./games/sichuan-mahjong');
 const MonopolyEngine = require('./games/monopoly');
 const { VERSION } = require('./public/version');
 const config = require('./config');
+const db = require('./db');
+const bcrypt = require('bcrypt');
 
 const PORT = config.PORT;
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript' };
@@ -50,8 +52,14 @@ const pendingReconnects = new Map(); // userId -> { user, roomId, gameIndex, tim
 const RECONNECT_GRACE_MS = config.RECONNECT_GRACE_MS;  // 断线宽限期(默认120秒)
 const RECONNECT_GAMES = new Set(['mahjong', 'card']); // 支持断线重连的游戏
 let lobbyChat = [];            // {name, text, time}
-let nextUserId = 1;
+let nextUserId = 1;            // 游客临时id自增(注册用户用数据库account.id)
 let nextRoomId = 1;
+const registerAttempts = new Map(); // ip -> [时间戳...] 注册频率限制
+const REGISTER_LIMIT = 3;     // 每分钟最多3次注册
+const REGISTER_WINDOW_MS = 60000;
+
+// 启动时清理过期会话
+db.cleanExpiredSessions();
 
 const GAMES = [
   { id: 'card',   name: '卡牌对战',   desc: '双人回合制卡牌对战', minPlayers: 2, maxPlayers: 2, available: true },
@@ -206,7 +214,8 @@ function addChat(scope, roomId, name, text) {
   }
 }
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
+  ws._ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
   log.info(`WebSocket 连接建立，当前在线 ${users.size + 1}`);
   send(ws, { event: 'connected', serverVersion: VERSION });
 
@@ -218,14 +227,14 @@ wss.on('connection', (ws) => {
     /* ---------- 心跳 ---------- */
     if (msg.type === 'ping') { send(ws, { event: 'pong' }); return; }
 
-    /* ---------- 登录 ---------- */
+    /* ---------- 登录/注册/游客 ---------- */
     if (msg.type === 'setName') {
       // 版本校验：客户端版本与服务端不一致时记录日志并提示更新（不强制断开，避免误伤）
       if (msg.clientVersion && msg.clientVersion !== VERSION) {
         log.warn(`版本不匹配: 客户端=${msg.clientVersion} 服务端=${VERSION} 用户=${(msg.name||'').trim()}`);
         send(ws, { event: 'versionMismatch', client: msg.clientVersion, server: VERSION });
       }
-      // 断线重连识别：带 userId 且在宽限期内，恢复原游戏会话
+      // 断线重连识别：带 userId 且在宽限期内，恢复原游戏会话(游客/注册用户都适用)
       if (msg.reconnect && msg.userId != null && pendingReconnects.has(msg.userId)) {
         const pr = pendingReconnects.get(msg.userId);
         pendingReconnects.delete(msg.userId);
@@ -233,9 +242,9 @@ wss.on('connection', (ws) => {
         const room = rooms.get(pr.roomId);
         if (room && room.gameInstance && room.status === 'playing' && room.players.includes(pr.user.id)) {
           const playerIdx = room.gameInstance.players.findIndex(p => p.id === pr.user.id);
-          pr.user.state = 'playing'; // roomId/gameIndex 保持不变
-          users.set(ws, pr.user);    // 新 ws 绑定回原 user
-          send(ws, { event: 'named', name: pr.user.name, userId: pr.user.id });
+          pr.user.state = 'playing';
+          users.set(ws, pr.user);
+          send(ws, { event: 'named', name: pr.user.name, userId: pr.user.id, token: pr.user.token || null, isGuest: !!pr.user.isGuest });
           send(ws, { event: 'reconnected', roomId: room.id, gameType: room.gameType });
           send(ws, buildRoomState(room));
           send(ws, { event: 'gameStarted', roomId: room.id, gameType: room.gameType });
@@ -247,18 +256,91 @@ wss.on('connection', (ws) => {
           log.info(`用户 ${pr.user.name} 重连成功 (uid=${pr.user.id})`);
           return;
         }
-        // 房间已不在/游戏已结束，按普通登录处理，清空旧会话
         pr.user.roomId = null; pr.user.gameIndex = -1;
         log.info(`用户 ${pr.user.name} 重连时房间已不在，转为普通登录`);
       }
+
+      // 注册用户 token 恢复：reconnect 带 token 且 pendingReconnects 没命中(服务重启后/刷新超时)
+      // 用 token 验证身份恢复 user，不需要重新输密码
+      if (msg.reconnect && msg.token && !msg.isGuest) {
+        const acc = db.verifySession(msg.token);
+        if (acc) {
+          kickExistingSessions(acc.id, ws);  // 后登踢先登(极端情况)
+          const userObj = { id: acc.id, name: acc.nickname, state: 'lobby', roomId: null, gameIndex: -1, isGuest: false, accountId: acc.id, token: msg.token };
+          users.set(ws, userObj);
+          send(ws, { event: 'named', name: acc.nickname, userId: acc.id, token: msg.token, isGuest: false });
+          send(ws, buildLobbyState());
+          send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
+          broadcastLobby(buildLobbyState());
+          log.info(`用户 ${acc.nickname} token重连成功 (uid=${acc.id})`);
+          return;
+        }
+        // token 失效：通知前端清session回登录页，不自动当游客
+        send(ws, { event: 'reconnectFailed', reason: '登录已过期，请重新登录' });
+        return;
+      }
+
+      // reconnect 请求但既无 token(游客超时)：通知前端回登录页
+      if (msg.reconnect) {
+        send(ws, { event: 'reconnectFailed', reason: '连接已过期，请重新进入' });
+        return;
+      }
+
+      // 按 mode 分流：guest(游客) / register(注册) / login(登录)
+      const mode = msg.mode || 'guest';
+
+      if (mode === 'register') {
+        const username = (msg.username || '').trim();
+        const password = msg.password || '';
+        const nickname = (msg.nickname || '').trim().slice(0, 12) || username;
+        if (!username || !password) { send(ws, { event: 'error', msg: '用户名和密码不能为空' }); return; }
+        if (username.length > 20 || password.length < 6) { send(ws, { event: 'error', msg: '密码至少6位，用户名不超过20字' }); return; }
+        if (!checkRegisterLimit(ws._ip)) { send(ws, { event: 'error', msg: '注册太频繁，请稍后再试' }); return; }
+        try {
+          const acc = db.createAccount(username, password, nickname);
+          const token = db.createSession(acc.id);
+          kickExistingSessions(acc.id, ws);  // 后登踢先登(极少见，刚注册就重复)
+          const userObj = { id: acc.id, name: nickname, state: 'lobby', roomId: null, gameIndex: -1, isGuest: false, accountId: acc.id, token };
+          users.set(ws, userObj);
+          send(ws, { event: 'named', name: nickname, userId: acc.id, token, isGuest: false });
+          send(ws, buildLobbyState());
+          send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
+          broadcastLobby(buildLobbyState());
+          log.info(`用户注册: ${username} -> uid=${acc.id}`);
+        } catch (e) {
+          if (e.message === 'USERNAME_EXISTS') send(ws, { event: 'error', msg: '用户名已存在' });
+          else { log.error(`注册异常: ${e.message}`); send(ws, { event: 'error', msg: '注册失败' }); }
+        }
+        return;
+      }
+
+      if (mode === 'login') {
+        const username = (msg.username || '').trim();
+        const password = msg.password || '';
+        const acc = db.verifyAccount(username, password);
+        if (!acc) { send(ws, { event: 'error', msg: '用户名或密码错误' }); return; }
+        const token = db.createSession(acc.id);
+        kickExistingSessions(acc.id, ws);  // 后登踢先登
+        const userObj = { id: acc.id, name: acc.nickname, state: 'lobby', roomId: null, gameIndex: -1, isGuest: false, accountId: acc.id, token };
+        users.set(ws, userObj);
+        send(ws, { event: 'named', name: acc.nickname, userId: acc.id, token, isGuest: false });
+        send(ws, buildLobbyState());
+        send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
+        broadcastLobby(buildLobbyState());
+        log.info(`用户登录: ${username} -> uid=${acc.id}`);
+        return;
+      }
+
+      // mode === 'guest'（游客）：原逻辑，分配临时 id
       const name = (msg.name || '').trim().slice(0, 12) || '匿名';
       const id = nextUserId++;
-      users.set(ws, { id, name, state: 'lobby', roomId: null, gameIndex: -1 });
-      send(ws, { event: 'named', name: name, userId: id });
+      const userObj = { id, name, state: 'lobby', roomId: null, gameIndex: -1, isGuest: true, accountId: null, token: null };
+      users.set(ws, userObj);
+      send(ws, { event: 'named', name: name, userId: id, token: null, isGuest: true });
       send(ws, buildLobbyState());
       send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
       broadcastLobby(buildLobbyState());
-      log.info(`用户登录: ${name} (uid=${id})`);
+      log.info(`游客登录: ${name} (uid=${id})`);
       return;
     }
 
@@ -369,6 +451,31 @@ wss.on('connection', (ws) => {
         broadcastLobby(buildLobbyState());
         log.info(`用户 ${user.name} 离开房间 ${rid}`);
       }
+      return;
+    }
+
+    /* ---------- 改昵称(仅注册账号) ---------- */
+    if (msg.type === 'changeNickname') {
+      if (user.isGuest) { send(ws, { event: 'error', msg: '游客不能改昵称，请先注册账号' }); return; }
+      const nickname = (msg.nickname || '').trim().slice(0, 12);
+      if (!nickname) { send(ws, { event: 'error', msg: '昵称不能为空' }); return; }
+      const acc = db.updateNickname(user.accountId, nickname);
+      if (!acc) { send(ws, { event: 'error', msg: '账号不存在' }); return; }
+      user.name = nickname;  // 更新当前会话的显示名
+      send(ws, { event: 'nicknameChanged', nickname });
+      broadcastLobby(buildLobbyState());
+      log.info(`用户 accountId=${user.accountId} 改昵称为 ${nickname}`);
+      return;
+    }
+
+    /* ---------- 退出登录 ---------- */
+    if (msg.type === 'logout') {
+      if (user.token) db.deleteSession(user.token);  // 删服务端会话
+      if (user.roomId) leaveRoomInternal(user.id);   // 离开房间(若在)
+      users.delete(ws);
+      broadcastLobby(buildLobbyState());
+      log.info(`用户 ${user.name} 退出登录`);
+      try { ws.close(); } catch (e) {}  // 断开连接，前端回登录页
       return;
     }
 
@@ -691,12 +798,14 @@ wss.on('connection', (ws) => {
     const user = users.get(ws);
     if (!user) { log.debug('匿名连接断开'); return; }
     users.delete(ws);
-    log.info(`用户断开: ${user.name}`);
+    const wasKicked = !!ws._kicked;  // 被踢(后登踢先登)的连接不进宽限期
+    log.info(`用户断开: ${user.name}${wasKicked ? '(被踢)' : ''}`);
 
-    // 麻将/卡牌游戏中断线：进入120秒宽限期，不立即离开房间
+    // 被踢或非游戏中：直接离开房间；麻将/卡牌游戏中正常断线进120秒宽限期
     if (user.roomId) {
       const room = rooms.get(user.roomId);
-      if (room && room.status === 'playing' && room.gameInstance && RECONNECT_GAMES.has(room.gameType) && room.players.includes(user.id)) {
+      const canReconnect = !wasKicked && room && room.status === 'playing' && room.gameInstance && RECONNECT_GAMES.has(room.gameType) && room.players.includes(user.id);
+      if (canReconnect) {
         const playerIdx = room.gameInstance.players.findIndex(p => p.id === user.id);
         if (playerIdx >= 0) {
           room.gameInstance.playerDisconnected(playerIdx); // 仅暂停(引擎改造后)
@@ -746,6 +855,29 @@ function clearPendingReconnectsByRoom(roomId) {
       pendingReconnects.delete(uid);
     }
   }
+}
+
+// 后登踢先登：踢掉同 accountId 的旧连接，发 kicked 事件并标记(不进宽限期)
+function kickExistingSessions(accountId, exceptWs) {
+  for (const [oldWs, u] of users) {
+    if (u.accountId === accountId && oldWs !== exceptWs && oldWs.readyState === 1) {
+      oldWs._kicked = true;  // 标记被踢，close 时不走宽限期
+      send(oldWs, { event: 'kicked', reason: '账号在其他设备登录' });
+      try { oldWs.close(); } catch (e) {}
+      log.info(`账号 ${u.name}(accountId=${accountId}) 旧连接被踢(后登踢先登)`);
+    }
+  }
+}
+
+// 注册频率限制：同IP每分钟最多 REGISTER_LIMIT 次
+function checkRegisterLimit(ip) {
+  if (!ip) return true;
+  const now = Date.now();
+  const arr = (registerAttempts.get(ip) || []).filter(t => now - t < REGISTER_WINDOW_MS);
+  if (arr.length >= REGISTER_LIMIT) return false;
+  arr.push(now);
+  registerAttempts.set(ip, arr);
+  return true;
 }
 
 function leaveRoomInternal(userId) {

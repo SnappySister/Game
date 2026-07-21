@@ -8,6 +8,9 @@ logs/
 lobby/logs/
 test-*.js
 
+# 依赖(不提交，各自环境npm install)
+node_modules/
+
 # 账号系统数据(绝不提交：含密码hash/战绩/密钥)
 *.db
 *.sqlite
