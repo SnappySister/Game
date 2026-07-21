@@ -1,0 +1,10 @@
+{
+  "_comment": "配置示例文件(无真实密钥)。复制为 config.production.json 并填真实值，后者已被 .gitignore 忽略。",
+  "port": 3456,
+  "dbPath": "./lobby/data/game.db",
+  "sessionSecret": "_请替换为随机长字符串_建议32位以上_",
+  "sessionTtlDays": 7,
+  "bcryptRounds": 10,
+  "reconnectGraceMs": 120000,
+  "vipEnabled": false
+}

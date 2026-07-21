@@ -7,8 +7,9 @@ const TexasHoldemEngine = require('./games/texas-holdem');
 const SichuanMahjongEngine = require('./games/sichuan-mahjong');
 const MonopolyEngine = require('./games/monopoly');
 const { VERSION } = require('./public/version');
+const config = require('./config');
 
-const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3456;
+const PORT = config.PORT;
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript' };
 
 /* ==================== 日志系统 ==================== */
@@ -46,7 +47,7 @@ const log = {
 const users = new Map();       // ws -> { id, name, state, roomId, gameIndex }
 const rooms = new Map();       // roomId -> Room
 const pendingReconnects = new Map(); // userId -> { user, roomId, gameIndex, timer, disconnectAt } 断线待重连会话
-const RECONNECT_GRACE_MS = 120000;  // 断线宽限期 120 秒
+const RECONNECT_GRACE_MS = config.RECONNECT_GRACE_MS;  // 断线宽限期(默认120秒)
 const RECONNECT_GAMES = new Set(['mahjong', 'card']); // 支持断线重连的游戏
 let lobbyChat = [];            // {name, text, time}
 let nextUserId = 1;

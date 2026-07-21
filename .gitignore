@@ -7,3 +7,17 @@
 logs/
 lobby/logs/
 test-*.js
+
+# 账号系统数据(绝不提交：含密码hash/战绩/密钥)
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+# data目录下的数据文件忽略，但保留目录结构(.gitkeep)
+lobby/data/*
+!lobby/data/.gitkeep
+.env
+.env.local
+config.production.json
