@@ -58,6 +58,8 @@ addColumnIfMissing('accounts', 'elo', 'INTEGER NOT NULL DEFAULT 1000');
 addColumnIfMissing('accounts', 'wins', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('accounts', 'losses', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('accounts', 'draws', 'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('accounts', 'title', "TEXT DEFAULT NULL");        // 称号(玩家自定义文字)
+addColumnIfMissing('accounts', 'name_color', "TEXT DEFAULT NULL");  // 彩名颜色(如 #f1c40f)
 
 /* ==================== 账号 CRUD ==================== */
 const stmtGetByUsername = db.prepare('SELECT * FROM accounts WHERE username = ?');
@@ -66,6 +68,7 @@ const stmtInsertAccount = db.prepare(
   'INSERT INTO accounts (username, password_hash, nickname, created_at) VALUES (?, ?, ?, ?)'
 );
 const stmtUpdateNickname = db.prepare('UPDATE accounts SET nickname = ? WHERE id = ?');
+const stmtUpdateAppearance = db.prepare('UPDATE accounts SET title = ?, name_color = ? WHERE id = ?');
 
 // 注册：返回 {id, username, nickname} 或抛错(用户名重复)
 function createAccount(username, password, nickname) {
@@ -96,6 +99,13 @@ function getAccountByUsername(username) {
 // 改昵称：返回更新后的 account 或 null(账号不存在)
 function updateNickname(accountId, newNickname) {
   const info = stmtUpdateNickname.run(newNickname, accountId);
+  if (info.changes === 0) return null;
+  return getAccountById(accountId);
+}
+
+// 改外观(称号+彩名)：title/name_color 允许 null(清空)，返回更新后的 account
+function updateAppearance(accountId, title, nameColor) {
+  const info = stmtUpdateAppearance.run(title, nameColor, accountId);
   if (info.changes === 0) return null;
   return getAccountById(accountId);
 }
@@ -198,13 +208,13 @@ function getAccountStats(accountId, recentLimit = 10) {
 function getLeaderboard(scope = 'total', limit = 50) {
   // 总榜/周榜/月榜按 accounts.elo；分游戏榜按该游戏胜率(需有该游戏对局)
   if (scope === 'total') {
-    return db.prepare('SELECT nickname, elo, wins, losses, draws FROM accounts WHERE (wins+losses+draws) > 0 ORDER BY elo DESC, wins DESC LIMIT ?').all(limit);
+    return db.prepare('SELECT nickname, elo, wins, losses, draws, title, name_color as nameColor FROM accounts WHERE (wins+losses+draws) > 0 ORDER BY elo DESC, wins DESC LIMIT ?').all(limit);
   }
   if (scope === 'weekly' || scope === 'monthly') {
     const days = scope === 'weekly' ? 7 : 30;
     const since = Date.now() - days * 24 * 3600 * 1000;
     return db.prepare(
-      `SELECT a.nickname,
+      `SELECT a.nickname, a.title, a.name_color as nameColor,
          SUM(CASE WHEN r.result='win' THEN 1 ELSE 0 END) as wins,
          SUM(CASE WHEN r.result='loss' THEN 1 ELSE 0 END) as losses,
          SUM(CASE WHEN r.result='draw' THEN 1 ELSE 0 END) as draws,
@@ -218,7 +228,7 @@ function getLeaderboard(scope = 'total', limit = 50) {
   const validGames = ['mahjong', 'card', 'poker', 'monopoly'];
   if (!validGames.includes(scope)) return [];
   return db.prepare(
-    `SELECT a.nickname, a.elo,
+    `SELECT a.nickname, a.elo, a.title, a.name_color as nameColor,
        SUM(CASE WHEN r.result='win' THEN 1 ELSE 0 END) as wins,
        SUM(CASE WHEN r.result='loss' THEN 1 ELSE 0 END) as losses,
        COUNT(*) as games
@@ -235,6 +245,7 @@ module.exports = {
   getAccountById,
   getAccountByUsername,
   updateNickname,
+  updateAppearance,
   createSession,
   verifySession,
   deleteSession,

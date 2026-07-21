@@ -1422,6 +1422,8 @@ class SichuanMahjongEngine {
       diceResult: this.diceResult,
       players: this.players.map((p, i) => ({
         name: p.name,
+        title: p.title || null,
+        nameColor: p.nameColor || null,
         index: i,
         handSize: p.hand.length,
         discards: p.discards,

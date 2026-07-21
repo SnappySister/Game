@@ -732,6 +732,32 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
 .lb-detail { color: #7f8c8d; font-size: 11px; width: 110px; text-align: right; }
 .lb-empty { text-align: center; color: #7f8c8d; padding: 30px; }
 
+/* 称号徽章 + 彩名 */
+.title-badge {
+  display: inline-block;
+  font-size: 10px;
+  color: #fff;
+  background: linear-gradient(135deg, #f39c12, #e67e22);
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-right: 4px;
+  vertical-align: middle;
+  font-weight: normal;
+}
+.nick { color: #f1c40f; }
+
+/* 外观颜色选择器 */
+.color-picker { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.color-swatch {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 3px solid transparent;
+  transition: border-color .15s;
+}
+.color-swatch.selected { border-color: #fff; }
+.color-swatch:hover { border-color: #aaa; }
+
 /* ===== 更新公告 ===== */
 .changelog-version { margin-bottom: 16px; }
 .changelog-title { font-size: 16px; color: #f1c40f; font-weight: bold; margin-bottom: 6px; }

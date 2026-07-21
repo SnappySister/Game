@@ -133,7 +133,7 @@ function buildLobbyState() {
   const online = [];
   for (const [, u] of users) {
     // 所有已登录用户都算在线(含大厅/房间/游戏内)，断开的已从 users 删除
-    const entry = { name: u.name, state: u.state };
+    const entry = { name: u.name, state: u.state, title: u.title || null, nameColor: u.nameColor || null };
     if (u.roomId) {
       const room = rooms.get(u.roomId);
       if (room) {
@@ -178,10 +178,10 @@ function buildRoomList(gameType) {
 function buildRoomState(room) {
   // 查找玩家信息：优先 users，其次 pendingReconnects(断线待重连)，并标记 reconnecting
   const findUserInfo = (uid) => {
-    for (const [, u] of users) if (u.id === uid) return { name: u.name, id: u.id, reconnecting: false };
+    for (const [, u] of users) if (u.id === uid) return { name: u.name, id: u.id, reconnecting: false, title: u.title || null, nameColor: u.nameColor || null };
     const pr = pendingReconnects.get(uid);
-    if (pr) return { name: pr.user.name, id: uid, reconnecting: true };
-    return { name: '?', id: uid, reconnecting: false };
+    if (pr) return { name: pr.user.name, id: uid, reconnecting: true, title: pr.user.title || null, nameColor: pr.user.nameColor || null };
+    return { name: '?', id: uid, reconnecting: false, title: null, nameColor: null };
   };
   const pNames = room.players.map(findUserInfo);
   const sNames = room.spectators.map(findUserInfo);
@@ -244,7 +244,7 @@ wss.on('connection', (ws, req) => {
           const playerIdx = room.gameInstance.players.findIndex(p => p.id === pr.user.id);
           pr.user.state = 'playing';
           users.set(ws, pr.user);
-          send(ws, { event: 'named', name: pr.user.name, userId: pr.user.id, token: pr.user.token || null, isGuest: !!pr.user.isGuest });
+          send(ws, { event: 'named', name: pr.user.name, userId: pr.user.id, token: pr.user.token || null, isGuest: !!pr.user.isGuest, title: pr.user.title || null, nameColor: pr.user.nameColor || null });
           send(ws, { event: 'reconnected', roomId: room.id, gameType: room.gameType });
           send(ws, buildRoomState(room));
           send(ws, { event: 'gameStarted', roomId: room.id, gameType: room.gameType });
@@ -266,9 +266,9 @@ wss.on('connection', (ws, req) => {
         const acc = db.verifySession(msg.token);
         if (acc) {
           kickExistingSessions(acc.id, ws);  // 后登踢先登(极端情况)
-          const userObj = { id: acc.id, name: acc.nickname, state: 'lobby', roomId: null, gameIndex: -1, isGuest: false, accountId: acc.id, token: msg.token };
+          const userObj = makeUser(acc, msg.token);
           users.set(ws, userObj);
-          send(ws, { event: 'named', name: acc.nickname, userId: acc.id, token: msg.token, isGuest: false });
+          send(ws, { event: 'named', name: acc.nickname, userId: acc.id, token: msg.token, isGuest: false, title: userObj.title, nameColor: userObj.nameColor });
           send(ws, buildLobbyState());
           send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
           broadcastLobby(buildLobbyState());
@@ -300,9 +300,9 @@ wss.on('connection', (ws, req) => {
           const acc = db.createAccount(username, password, nickname);
           const token = db.createSession(acc.id);
           kickExistingSessions(acc.id, ws);  // 后登踢先登(极少见，刚注册就重复)
-          const userObj = { id: acc.id, name: nickname, state: 'lobby', roomId: null, gameIndex: -1, isGuest: false, accountId: acc.id, token };
+          const userObj = makeUser({ ...acc, title: null, name_color: null }, token);
           users.set(ws, userObj);
-          send(ws, { event: 'named', name: nickname, userId: acc.id, token, isGuest: false });
+          send(ws, { event: 'named', name: nickname, userId: acc.id, token, isGuest: false, title: null, nameColor: null });
           send(ws, buildLobbyState());
           send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
           broadcastLobby(buildLobbyState());
@@ -321,9 +321,9 @@ wss.on('connection', (ws, req) => {
         if (!acc) { send(ws, { event: 'error', msg: '用户名或密码错误' }); return; }
         const token = db.createSession(acc.id);
         kickExistingSessions(acc.id, ws);  // 后登踢先登
-        const userObj = { id: acc.id, name: acc.nickname, state: 'lobby', roomId: null, gameIndex: -1, isGuest: false, accountId: acc.id, token };
+        const userObj = makeUser(acc, token);
         users.set(ws, userObj);
-        send(ws, { event: 'named', name: acc.nickname, userId: acc.id, token, isGuest: false });
+        send(ws, { event: 'named', name: acc.nickname, userId: acc.id, token, isGuest: false, title: userObj.title, nameColor: userObj.nameColor });
         send(ws, buildLobbyState());
         send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
         broadcastLobby(buildLobbyState());
@@ -334,9 +334,9 @@ wss.on('connection', (ws, req) => {
       // mode === 'guest'（游客）：原逻辑，分配临时 id
       const name = (msg.name || '').trim().slice(0, 12) || '匿名';
       const id = nextUserId++;
-      const userObj = { id, name, state: 'lobby', roomId: null, gameIndex: -1, isGuest: true, accountId: null, token: null };
+      const userObj = { id, name, state: 'lobby', roomId: null, gameIndex: -1, isGuest: true, accountId: null, token: null, title: null, nameColor: null };
       users.set(ws, userObj);
-      send(ws, { event: 'named', name: name, userId: id, token: null, isGuest: true });
+      send(ws, { event: 'named', name: name, userId: id, token: null, isGuest: true, title: null, nameColor: null });
       send(ws, buildLobbyState());
       send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
       broadcastLobby(buildLobbyState());
@@ -465,6 +465,23 @@ wss.on('connection', (ws, req) => {
       send(ws, { event: 'nicknameChanged', nickname });
       broadcastLobby(buildLobbyState());
       log.info(`用户 accountId=${user.accountId} 改昵称为 ${nickname}`);
+      return;
+    }
+
+    /* ---------- 改外观(称号+彩名，仅注册账号) ---------- */
+    if (msg.type === 'updateAppearance') {
+      if (user.isGuest) { send(ws, { event: 'error', msg: '游客不能改外观，请先注册账号' }); return; }
+      // 称号: 最多8字，允许空(清空)；彩名: 限定预设颜色防注入
+      const title = (msg.title || '').trim().slice(0, 8) || null;
+      const ALLOWED_COLORS = ['#f1c40f', '#e74c3c', '#2ecc71', '#3498db', '#9b59b6', '#e67e22', '#1abc9c', '#ecf0f1'];
+      const nameColor = ALLOWED_COLORS.includes(msg.nameColor) ? msg.nameColor : null;
+      const acc = db.updateAppearance(user.accountId, title, nameColor);
+      if (!acc) { send(ws, { event: 'error', msg: '账号不存在' }); return; }
+      user.title = title;
+      user.nameColor = nameColor;
+      send(ws, { event: 'appearanceChanged', title, nameColor });
+      broadcastLobby(buildLobbyState());
+      log.info(`用户 accountId=${user.accountId} 改外观 title=${title} color=${nameColor}`);
       return;
     }
 
@@ -604,7 +621,7 @@ wss.on('connection', (ws, req) => {
       const players = room.players.map((uid, i) => {
         for (const [ws2, u] of users) {
           if (u.id === uid) {
-            const p = { id: uid, name: u.name, ws: ws2, index: i };
+            const p = { id: uid, name: u.name, ws: ws2, index: i, title: u.title || null, nameColor: u.nameColor || null };
             if (room.gameType === 'card') p.character = (room.characterSelections && room.characterSelections[uid]) || null;
             return p;
           }
@@ -716,7 +733,7 @@ wss.on('connection', (ws, req) => {
         if (room.players.length !== room.gameInstance.playerCount) {
           const players = room.players.map((uid, i) => {
             for (const [ws2, u] of users) {
-              if (u.id === uid) return { id: uid, name: u.name, ws: ws2, index: i };
+              if (u.id === uid) return { id: uid, name: u.name, ws: ws2, index: i, title: u.title || null, nameColor: u.nameColor || null };
             }
           }).filter(Boolean);
           const sendToPlayer = wrapSendToPlayer(room, (pIdx, obj) => {
@@ -893,6 +910,15 @@ function checkRegisterLimit(ip) {
   arr.push(now);
   registerAttempts.set(ip, arr);
   return true;
+}
+
+// 构造注册用户的 user 对象(含外观字段 title/name_color)
+function makeUser(acc, token) {
+  return {
+    id: acc.id, name: acc.nickname, state: 'lobby', roomId: null, gameIndex: -1,
+    isGuest: false, accountId: acc.id, token,
+    title: acc.title || null, nameColor: acc.name_color || null
+  };
 }
 
 // ELO 按名次加减分：1v1 胜+20负-20；多人局按人数套档位(第1+30/第2+10/第3-10/第4-30)

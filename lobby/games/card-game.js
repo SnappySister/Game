@@ -757,7 +757,7 @@ class CardGameEngine {
       players: this.players.map((p, i) => {
         const ch = CHARACTERS.find(c => c.id === p.character);
         return {
-          name: p.name, hp: p.hp, maxHp: p.maxHp, shield: p.shield,
+          name: p.name, title: p.title || null, nameColor: p.nameColor || null, hp: p.hp, maxHp: p.maxHp, shield: p.shield,
           mana: p.mana, maxMana: p.maxMana,
           poison: p.poison || 0, burn: p.burn || 0, burnTurn: p.burnTurn || 0,
           frozen: !!p.frozen,

@@ -835,7 +835,7 @@ class MonopolyEngine {
       round: this.round,
       maxRounds: this.maxRounds,
       players: this.players.map(p => ({
-        id: p.id, name: p.name, cash: p.cash, position: p.position,
+        id: p.id, name: p.name, title: p.title || null, nameColor: p.nameColor || null, cash: p.cash, position: p.position,
         bankrupt: p.bankrupt, jailTurns: p.jailTurns, jailCards: p.jailCards,
         disconnected: p.disconnected, score: p.score, netWorth: this._netWorth(p)
       })),

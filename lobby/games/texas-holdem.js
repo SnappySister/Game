@@ -569,6 +569,8 @@ class TexasHoldemEngine {
     const settlement = {
       players: this.players.map((p, i) => ({
         name: p.name,
+        title: p.title || null,
+        nameColor: p.nameColor || null,
         holeCards: p.holeCards.map(cardToString),
         bestHand: handRankName(p._score || (this.communityCards.length >= 5 ? evaluate7([...p.holeCards, ...this.communityCards]) : 0)),
         chips: p.chips,
