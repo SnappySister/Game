@@ -265,6 +265,12 @@ wss.on('connection', (ws, req) => {
       if (msg.reconnect && msg.token && !msg.isGuest) {
         const acc = db.verifySession(msg.token);
         if (acc) {
+          // 防反踢：该账号10秒内被踢过(被后登踢先登)，禁止token恢复，要求重新登录
+          const kickedAt = recentlyKicked.get(acc.id);
+          if (kickedAt && Date.now() - kickedAt < 10000) {
+            send(ws, { event: 'reconnectFailed', reason: '账号在其他设备登录，请重新登录' });
+            return;
+          }
           kickExistingSessions(acc.id, ws);  // 后登踢先登(极端情况)
           const userObj = makeUser(acc, msg.token);
           users.set(ws, userObj);
@@ -745,6 +751,10 @@ wss.on('connection', (ws, req) => {
             for (const [ws2, u] of users) {
               if (u.id === uid) return { id: uid, name: u.name, ws: ws2, index: i, title: u.title || null, nameColor: u.nameColor || null, vipActive: !!u.vipActive };
             }
+            // 断线中的玩家在 pendingReconnects 里(ws=null，引擎发送时自动跳过)
+            for (const [, pr] of pendingReconnects) {
+              if (pr.user.id === uid) return { id: uid, name: pr.user.name, ws: null, index: i, title: pr.user.title || null, nameColor: pr.user.nameColor || null, vipActive: !!pr.user.vipActive };
+            }
           }).filter(Boolean);
           const sendToPlayer = wrapSendToPlayer(room, (pIdx, obj) => {
             const uid = room.players[pIdx];
@@ -840,13 +850,14 @@ wss.on('connection', (ws, req) => {
     const user = users.get(ws);
     if (!user) { log.debug('匿名连接断开'); return; }
     users.delete(ws);
-    const wasKicked = !!ws._kicked;  // 被踢(后登踢先登)的连接不进宽限期
+    const wasKicked = !!ws._kicked;  // 被踢(后登踢先登)
     log.info(`用户断开: ${user.name}${wasKicked ? '(被踢)' : ''}`);
 
-    // 被踢或非游戏中：直接离开房间；麻将/卡牌游戏中正常断线进120秒宽限期
+    // 麻将/卡牌游戏中断线(含被踢)进120秒宽限期，给玩家恢复机会；
+    // 若同账号在别处登录，kickExistingSessions 会清掉这个宽限期(后登踢先登仍生效)
     if (user.roomId) {
       const room = rooms.get(user.roomId);
-      const canReconnect = !wasKicked && room && room.status === 'playing' && room.gameInstance && RECONNECT_GAMES.has(room.gameType) && room.players.includes(user.id);
+      const canReconnect = room && room.status === 'playing' && room.gameInstance && RECONNECT_GAMES.has(room.gameType) && room.players.includes(user.id);
       if (canReconnect) {
         const playerIdx = room.gameInstance.players.findIndex(p => p.id === user.id);
         if (playerIdx >= 0) {
@@ -865,6 +876,17 @@ wss.on('connection', (ws, req) => {
       leaveRoomInternal(user.id); // 非游戏中/不支持重连的游戏 → 原逻辑
     }
     broadcastLobby(buildLobbyState());
+
+    // 所有人都断开了：清理服务器内存(聊天/频率限制/踢人记录)，房间已在leaveRoomInternal删除
+    if (users.size === 0) {
+      lobbyChat = [];
+      registerAttempts.clear();
+      recentlyKicked.clear();
+      // pendingReconnects 里的定时器也要清(虽然人都走了，但宽限期定时器还在跑)
+      for (const [uid, pr] of pendingReconnects) { clearTimeout(pr.timer); }
+      pendingReconnects.clear();
+      log.info('所有用户已断开，服务器内存已清理(聊天/待重连/频率限制)');
+    }
   });
 });
 
@@ -884,7 +906,10 @@ function onReconnectTimeout(userId) {
     // 调用引擎的强制判负(原 playerDisconnected 逻辑)
     if (typeof room.gameInstance.playerForceOut === 'function') room.gameInstance.playerForceOut(playerIdx);
     else room.gameInstance.playerDisconnected(playerIdx);
+    // 手动从 room.players 移除(避免 leaveRoomInternal 重复调 playerForceOut)
+    room.players = room.players.filter(id => id !== userId);
   }
+  // leaveRoomInternal 不会重复判负(玩家已从 room.players 移除)
   leaveRoomInternal(userId);
   broadcastLobby(buildLobbyState());
 }
@@ -899,8 +924,10 @@ function clearPendingReconnectsByRoom(roomId) {
   }
 }
 
-// 后登踢先登：踢掉同 accountId 的旧连接，发 kicked 事件并标记(不进宽限期)
+// 后登踢先登：踢掉同 accountId 的旧连接 + 清理待重连会话(防断线中同账号被恢复)
+const recentlyKicked = new Map(); // accountId -> 被踢时间戳(10秒内禁止token恢复，防反踢)
 function kickExistingSessions(accountId, exceptWs) {
+  // 1. 踢活跃连接
   for (const [oldWs, u] of users) {
     if (u.accountId === accountId && oldWs !== exceptWs && oldWs.readyState === 1) {
       oldWs._kicked = true;  // 标记被踢，close 时不走宽限期
@@ -909,6 +936,16 @@ function kickExistingSessions(accountId, exceptWs) {
       log.info(`账号 ${u.name}(accountId=${accountId}) 旧连接被踢(后登踢先登)`);
     }
   }
+  // 2. 清理同账号的待重连会话(防断线中的旧会话被恢复，绕过后登踢先登)
+  for (const [uid, pr] of pendingReconnects) {
+    if (pr.user.accountId === accountId) {
+      clearTimeout(pr.timer);
+      pendingReconnects.delete(uid);
+      log.info(`账号 accountId=${accountId} 断线会话被清理(后登踢先登)`);
+    }
+  }
+  // 3. 标记近期被踢(10秒内禁止token恢复，防被踢者没收到kicked事件而反踢)
+  recentlyKicked.set(accountId, Date.now());
 }
 
 // 注册频率限制：同IP每分钟最多 REGISTER_LIMIT 次
@@ -958,10 +995,14 @@ function writeMatchRecord(room) {
   if (!engine || !engine.players) return;
   const gameType = room.gameType;
   const players = engine.players;
-  // 关联 accountId(跳过游客)
+  // 关联 accountId(跳过游客)：查 users 和 pendingReconnects(断线玩家不在users里)
   const enriched = players.map(p => {
     let user = null;
     for (const [, u] of users) { if (u.id === p.id) { user = u; break; } }
+    // 断线中的玩家在 pendingReconnects 里
+    if (!user) {
+      for (const [, pr] of pendingReconnects) { if (pr.user.id === p.id) { user = pr.user; break; } }
+    }
     return { p, accountId: user && user.accountId };
   }).filter(e => e.accountId);  // 只保留注册用户
   if (enriched.length === 0) return;  // 全员游客，不记

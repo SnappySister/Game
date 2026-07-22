@@ -1295,6 +1295,8 @@ class SichuanMahjongEngine {
     this._log(`[engine] 下一局庄家=P${this.dealerIndex}`);
     this._broadcastAll();
 
+    // 先算好 change 存到 player 对象，供 writeMatchRecord 读取
+    this.players.forEach((p, i) => { p.change = p.score - (this.initialScores[i] || 0); });
     const settlement = {
       flowEnd: isFlowEnd,
       nextDealer: this.dealerIndex,
@@ -1302,7 +1304,7 @@ class SichuanMahjongEngine {
         name: p.name,
         score: p.score,
         isHu: p.isHu,
-        change: p.score - (this.initialScores[i] || 0),  // 本局变化量 = 当前分数 - 初始分数
+        change: p.change,
         melds: p.melds.map(m => ({ type: m.type, label: tileLabel(m.tiles[0]) })),
         fanDetail: p.fanDetail || null,
       })),

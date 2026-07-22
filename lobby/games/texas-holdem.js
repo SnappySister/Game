@@ -566,6 +566,8 @@ class TexasHoldemEngine {
     this.phase = 'ended';
     this.pot = 0; // 已分配完毕，清零防重复award
     this._broadcastAll();
+    // 先算好 change 存到 player 对象，供 writeMatchRecord 读取
+    this.players.forEach((p, i) => { p.change = p.chips - (this.startChips[i] || 0); });
     const settlement = {
       players: this.players.map((p, i) => ({
         name: p.name,
@@ -575,7 +577,7 @@ class TexasHoldemEngine {
         holeCards: p.holeCards.map(cardToString),
         bestHand: handRankName(p._score || (this.communityCards.length >= 5 ? evaluate7([...p.holeCards, ...this.communityCards]) : 0)),
         chips: p.chips,
-        change: p.chips - (this.startChips[i] || 0)
+        change: p.change
       })),
       pots: this.lastPots || []
     };

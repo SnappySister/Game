@@ -759,7 +759,7 @@ let ws = null, myName = '', myUserId = null, myToken = null, myIsGuest = true, m
 // 登录态持久化：存 name+userId+token+isGuest+时间戳到 localStorage，刷新页面可自动重连
 // 注册用户 token 长期有效(7天)，游客仅 130 秒(对齐服务端宽限期)
 const SESSION_KEY = 'mj_session';
-const GUEST_SESSION_TTL = 130000;   // 游客 130 秒
+const GUEST_SESSION_TTL = 120000;   // 游客 120 秒(对齐服务端宽限期)
 const ACCOUNT_SESSION_TTL = 7 * 24 * 3600 * 1000;  // 注册用户 7 天
 function saveSession() {
   if (myName && myUserId != null) {
