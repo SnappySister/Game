@@ -20,8 +20,8 @@ const CHARACTERS = [
     passive: { name: '博学', desc: '每回合抽牌数+1(共4张)' },
     active:  { name: '奥术涌动', desc: '消耗2水晶，抽2张牌并随机弃掉对手2张手牌', cost: 2 } },
   { id: 'tycoon', emoji: '💰', name: '财阀', type: '水晶',
-    passive: { name: '囤积', desc: '回合结束时若剩余水晶≥5，将全部剩余水晶存入储蓄(下回合自动加回可用水晶，可突破上限，不重置)' },
-    active:  { name: '水晶爆发', desc: '消耗当前全部水晶，每点造成2点伤害(至少需1水晶)', cost: 1 } },
+    passive: { name: '囤积', desc: '回合结束时将全部剩余水晶存入储蓄(下回合自动加回可用水晶，可突破上限，不重置)' },
+    active:  { name: '水晶爆发', desc: '消耗当前全部水晶，造成(10+水晶×2)点伤害；无水晶时也有10点保底伤害', cost: 1 } },
   { id: 'undead', emoji: '🧟', name: '不死族', type: '亡灵',
     passive: { name: '不灭', desc: '每局1次：受到致命伤害时保留1血不死' },
     active:  { name: '亡者汲取', desc: '消耗3水晶，造成6伤并回8血', cost: 3 } }

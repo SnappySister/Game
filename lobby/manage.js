@@ -1,9 +1,10 @@
-/* 管理脚本 - VIP 手动开通/查询/取消
+/* 管理脚本 - VIP/战绩管理
  * 用法：
  *   node manage.js vip <用户名> <天数>     开通/续费VIP
  *   node manage.js vipstatus <用户名>      查VIP状态
  *   node manage.js unvip <用户名>          取消VIP
  *   node manage.js list                    列出所有VIP用户
+ *   node manage.js resetstats              清空所有战绩和排行榜(elo归1000)
  */
 const db = require('./db');
 
@@ -15,6 +16,7 @@ function help() {
   console.log('  node manage.js vipstatus <用户名>      查VIP状态');
   console.log('  node manage.js unvip <用户名>          取消VIP');
   console.log('  node manage.js list                    列出所有VIP用户');
+  console.log('  node manage.js resetstats              清空所有战绩和排行榜');
 }
 
 async function main() {
@@ -63,6 +65,13 @@ async function main() {
         console.log(`  ${v.username} (${v.nickname}) - ${active ? '有效' : '已过期'} 剩余${remain}天`);
       });
     }
+  } else if (cmd === 'resetstats') {
+    const records = db.db.prepare('SELECT COUNT(*) as c FROM records').get().c;
+    db.db.exec('DELETE FROM records');
+    db.db.exec("UPDATE accounts SET elo = 1000, wins = 0, losses = 0, draws = 0");
+    console.log(`✓ 已清空 ${records} 条战绩记录`);
+    console.log('  所有账号 elo 重置为 1000，胜负场归 0');
+    console.log('  排行榜已清空');
   } else {
     help();
   }

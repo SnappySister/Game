@@ -637,13 +637,14 @@ class CardGameEngine {
         break;
       case 'tycoon': {
         const spent = user.mana || 0;
-        const dmg = spent * CONFIG.TYCOON_DMG_PER_SAVE;
-        if (dmg > 0) {
+        const dmg = CONFIG.TYCOON_BASE_DAMAGE + spent * CONFIG.TYCOON_DMG_PER_SAVE;
+        if (spent > 0) {
           this._dealDamage(user, target, dmg);
-          this.logs.push(`${user.name} 释放【水晶爆发】，消耗全部${spent}水晶造成${dmg}伤害`);
+          this.logs.push(`${user.name} 释放【水晶爆发】，消耗全部${spent}水晶，造成${dmg}伤害(保底${CONFIG.TYCOON_BASE_DAMAGE}+${spent}×${CONFIG.TYCOON_DMG_PER_SAVE})`);
           user.mana = 0;
         } else {
-          this.logs.push(`${user.name} 释放【水晶爆发】（无水晶可用）`);
+          this.logs.push(`${user.name} 释放【水晶爆发】（无水晶可用，保底${CONFIG.TYCOON_BASE_DAMAGE}伤害）`);
+          this._dealDamage(user, target, CONFIG.TYCOON_BASE_DAMAGE);
         }
         break;
       }
@@ -665,8 +666,8 @@ class CardGameEngine {
     this._applyStatusEffects(pp);
     if (pp.frozen) { pp.frozen = false; this.logs.push(`${pp.name} 从冰冻中恢复`); }
     if (pp.cardCostPenalty) { pp.cardCostPenalty = 0; } // 软控仅持续一个回合
-    // 财阀被动：回合结束剩余水晶≥5时存入储蓄
-    if (pp.character === 'tycoon' && pp.mana >= CONFIG.TYCOON_SAVE_THRESHOLD) {
+    // 财阀被动：回合结束剩余水晶全存(阈值0)
+    if (pp.character === 'tycoon' && pp.mana > 0) {
       pp.manaSavings = (pp.manaSavings || 0) + pp.mana;
       this.logs.push(`${pp.name} 触发【囤积】，存入${pp.mana}水晶(储蓄${pp.manaSavings})`);
     }

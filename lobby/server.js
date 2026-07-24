@@ -877,15 +877,21 @@ wss.on('connection', (ws, req) => {
     }
     broadcastLobby(buildLobbyState());
 
-    // 所有人都断开了：清理服务器内存(聊天/频率限制/踢人记录)，房间已在leaveRoomInternal删除
+    // 所有人都断开了：清理服务器内存(聊天/房间/频率限制/踢人记录)
     if (users.size === 0) {
       lobbyChat = [];
       registerAttempts.clear();
       recentlyKicked.clear();
-      // pendingReconnects 里的定时器也要清(虽然人都走了，但宽限期定时器还在跑)
+      // pendingReconnects 里的定时器也要清
       for (const [uid, pr] of pendingReconnects) { clearTimeout(pr.timer); }
       pendingReconnects.clear();
-      log.info('所有用户已断开，服务器内存已清理(聊天/待重连/频率限制)');
+      // 清理所有残留房间(包括游戏中断线未超时的)
+      if (rooms.size > 0) {
+        log.info(`所有用户已断开，清理 ${rooms.size} 个残留房间`);
+        rooms.clear();
+      } else {
+        log.info('所有用户已断开，服务器内存已清理');
+      }
     }
   });
 });
