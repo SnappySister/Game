@@ -1,11 +1,8 @@
 /* 卡牌游戏引擎 - 从 card-game/server.js 提取的游戏逻辑类 */
 
 const CONFIG = require('./card-config');
-const { CARDS, COIN_TEMPLATE } = require('./card-data');
+const { CARDS, COIN_TEMPLATE, getAllCards } = require('./card-data');
 const { CHARACTERS } = require('./character-data');
-const MAX_MANA = CONFIG.MAX_MANA;
-const START_HAND = CONFIG.START_HAND;
-const TURN_DRAW = CONFIG.TURN_DRAW;
 
 class CardGameEngine {
   constructor(players, sendFn) {
@@ -14,7 +11,7 @@ class CardGameEngine {
     this.players = players.map((p, i) => ({
       ...p,
       index: i,
-      hp: CONFIG.START_HP, maxHp: CONFIG.START_HP, shield: 0,
+      hp: CONFIG.get("START_HP"), maxHp: CONFIG.get("START_HP"), shield: 0,
       mana: 0, maxMana: 0,
       poison: 0, burn: 0, frozen: false, burnTurn: 0,
       immune: false, negImmune: false,
@@ -43,7 +40,7 @@ class CardGameEngine {
   start() {
     this.turn = Math.random() < 0.5 ? 0 : 1;
     this.players.forEach(p => {
-      p.hp = CONFIG.START_HP; p.maxHp = CONFIG.START_HP; p.shield = 0;
+      p.hp = CONFIG.get("START_HP"); p.maxHp = CONFIG.get("START_HP"); p.shield = 0;
       p.poison = 0; p.burn = 0; p.frozen = false;
       p.burnTurn = 0; p.negImmune = false;
       p.mana = 0; p.maxMana = 0; p.immune = false;
@@ -52,7 +49,7 @@ class CardGameEngine {
     this.logs = [];
     this.ended = false;
 
-    this.players.forEach(p => this._drawCards(p, START_HAND));
+    this.players.forEach(p => this._drawCards(p, CONFIG.get("START_HAND")));
     const second = (this.turn + 1) % 2;
     this._giveCoin(this.players[second]);
     this.logs.push(`${this.players[second].name} 获得后手硬币（+1水晶）`);
@@ -181,7 +178,7 @@ class CardGameEngine {
   /* 核心游戏逻辑 */
   _drawCards(player, n) {
     for (let i = 0; i < n; i++) {
-      const t = this._weightedPick(CARDS);
+      const t = this._weightedPick(getAllCards());
       const card = { ...t, uuid: Math.random().toString(36).slice(2, 9) };
       player.hand.push(card);
     }
@@ -196,7 +193,7 @@ class CardGameEngine {
       if (byRarity[r]) byRarity[r].push(c); else byRarity.common.push(c);
     }
     // 过滤掉空层，按权重选层
-    const RW = CONFIG.RARITY_WEIGHTS;
+    const RW = CONFIG.get("RARITY_WEIGHTS");
     const layers = Object.keys(RW).filter(r => byRarity[r] && byRarity[r].length > 0);
     if (layers.length === 0) return cards[0];
     const wTotal = layers.reduce((s, r) => s + RW[r], 0);
@@ -208,10 +205,10 @@ class CardGameEngine {
     }
     const pool = byRarity[chosen];
     // 层内按费用加权（低费权重高）
-    const total = pool.reduce((s, c) => s + Math.max(1, CONFIG.COST_WEIGHT_BASE - c.cost), 0);
+    const total = pool.reduce((s, c) => s + Math.max(1, CONFIG.get("COST_WEIGHT_BASE") - c.cost), 0);
     let r = Math.random() * total;
     for (const c of pool) {
-      r -= Math.max(1, CONFIG.COST_WEIGHT_BASE - c.cost);
+      r -= Math.max(1, CONFIG.get("COST_WEIGHT_BASE") - c.cost);
       if (r < 0) return c;
     }
     return pool[pool.length - 1];
@@ -234,13 +231,13 @@ class CardGameEngine {
 
   // 普通伤害修饰点：集中处理狂战士被动(+3)、寒冰法师冻结易伤(+3)、主动(翻倍)、壁垒守卫减伤。仅卡牌普通伤害调用。
   _dealDamage(user, target, baseV) {
-    if (user.character === 'berserker' && user.hp <= user.maxHp * CONFIG.BERSERKER_HP_RATIO) baseV += CONFIG.BERSERKER_BONUS;
+    if (user.character === 'berserker' && user.hp <= user.maxHp * CONFIG.get("BERSERKER_HP_RATIO")) baseV += CONFIG.get("BERSERKER_BONUS");
     // 寒冰法师被动：对手冻结期间受到的伤害+3
-    if (user.character === 'cryomage' && target.frozen) baseV += CONFIG.CRYO_VULN;
+    if (user.character === 'cryomage' && target.frozen) baseV += CONFIG.get("CRYO_VULN");
     if (user.berserkerDoubleDamage) baseV *= 2;
     // 壁垒守卫：在场期间普通伤害减半（向下取整）
     if (target.summons && target.summons.some(s => s.kind === 'guardian') && baseV > 0) {
-      const reduced = Math.floor(baseV * CONFIG.GUARDIAN_REDUCE);
+      const reduced = Math.floor(baseV * CONFIG.get("GUARDIAN_REDUCE"));
       this.logs.push(`${target.name} 的壁垒守卫减伤 ${baseV - reduced} 点`);
       baseV = reduced;
     }
@@ -264,7 +261,7 @@ class CardGameEngine {
       shield:   () => { user.shield += v; },
       vampiric: () => { this._dealDamage(user, target, v); if (user.burn > 0) extra = { healBlocked: true }; else user.hp = Math.min(user.maxHp, user.hp + Math.floor(v / 2)); },
       poison:   () => { this._dealDamage(user, target, v); if (target.negImmune) extra = { negBlocked: true }; else target.poison += card.stacks || 3; },
-      combust:  () => { this._dealDamage(user, target, card.fixedDmg || 6); if (target.negImmune) extra = { negBlocked: true }; else { target.burn += v; target.burnTurn = CONFIG.STATUS_DURATION; } },
+      combust:  () => { this._dealDamage(user, target, card.fixedDmg || 6); if (target.negImmune) extra = { negBlocked: true }; else { target.burn += v; target.burnTurn = CONFIG.get("STATUS_DURATION"); } },
       curse:    () => { if (target.negImmune) extra = { negBlocked: true }; else target.poison += v; },
       freeze:   () => { if (target.negImmune) extra = { negBlocked: true }; else target.frozen = true; },
       draw:     () => { this._drawCards(user, v); },
@@ -404,7 +401,7 @@ class CardGameEngine {
           if (target.negImmune) { extra = { ...extra, negBlocked: true }; }
           else {
             if (pick === 'poison') target.poison += card.stacks || 3;
-            if (pick === 'burn') { target.burn += card.stacks || 3; target.burnTurn = CONFIG.STATUS_DURATION; }
+            if (pick === 'burn') { target.burn += card.stacks || 3; target.burnTurn = CONFIG.get("STATUS_DURATION"); }
             if (pick === 'freeze') target.frozen = true;
           }
           negs.push(pick);
@@ -430,7 +427,7 @@ class CardGameEngine {
         const times = user.character === 'gambler' ? 2 : 1;
         const summoned = [];
         // 每类取所有卡牌(含火灵/剑魔/地狱火等同类变体)，合并后随机抽
-        const pool = CARDS.filter(c => ['summon_fire', 'summon_spider', 'summon_guard'].includes(c.type));
+        const pool = getAllCards().filter(c => ['summon_fire', 'summon_spider', 'summon_guard'].includes(c.type));
         for (let t = 0; t < times; t++) {
           const pick = pool[Math.floor(Math.random() * pool.length)];
           if (pick.type === 'summon_fire') {
@@ -466,7 +463,7 @@ class CardGameEngine {
   _gamblerBackfire(user, target, card, extra) {
     const RAND_TYPES = ['chaos', 'rand_mana', 'rand_pact', 'rand_copy', 'rand_summon'];
     if (user.character !== 'gambler' || !RAND_TYPES.includes(card.type)) return;
-    if (Math.random() >= CONFIG.GAMBLER_BACKFIRE) return; // 80%无事发生
+    if (Math.random() >= CONFIG.get("GAMBLER_BACKFIRE")) return; // 80%无事发生
 
     if (user.negImmune) {
       this.logs.push(`${user.name} 的随机牌反噬被护罩抵挡`);
@@ -475,7 +472,7 @@ class CardGameEngine {
     const pool = ['poison', 'burn', 'freeze'];
     const neg = pool[Math.floor(Math.random() * pool.length)];
     if (neg === 'poison') { user.poison += 3; this.logs.push(`${user.name} 随机牌反噬！自己中毒3层`); }
-    else if (neg === 'burn') { user.burn += 3; user.burnTurn = CONFIG.STATUS_DURATION; this.logs.push(`${user.name} 随机牌反噬！自己灼烧3层`); }
+    else if (neg === 'burn') { user.burn += 3; user.burnTurn = CONFIG.get("STATUS_DURATION"); this.logs.push(`${user.name} 随机牌反噬！自己灼烧3层`); }
     else { user.frozen = true; this.logs.push(`${user.name} 随机牌反噬！自己被冻结`); }
   }
 
@@ -506,10 +503,10 @@ class CardGameEngine {
     p.skillUsedThisTurn = false;
     if (p.immune) { p.immune = false; this.logs.push(`${p.name} 的格挡效果消失了`); }
     if (p.negImmune) { p.negImmune = false; this.logs.push(`${p.name} 的护罩效果消失了`); }
-    p.maxMana = Math.min(MAX_MANA, p.maxMana + 1);
+    p.maxMana = Math.min(CONFIG.get("MAX_MANA"), p.maxMana + 1);
     p.mana = p.maxMana + (p.manaSavings || 0); // 财阀储蓄水晶自动可用
     // 大法师被动：抽牌+1
-    const drawN = p.character === 'archmage' ? TURN_DRAW + 1 : TURN_DRAW;
+    const drawN = p.character === 'archmage' ? CONFIG.get("TURN_DRAW") + 1 : CONFIG.get("TURN_DRAW");
     this._drawCards(p, drawN);
     // 圣骑士被动：回合开始回2血(灼烧时除外) + 已有护盾时额外叠盾
     if (p.character === 'paladin' && p.burn === 0 && p.hp > 0) {
@@ -518,8 +515,8 @@ class CardGameEngine {
       if (p.hp > before) this.logs.push(`${p.name} 触发【圣愈】回2血`);
       // 叠盾：已有护盾时额外+3盾
       if (p.shield > 0) {
-        p.shield += CONFIG.PALADIN_SHIELD_BONUS;
-        this.logs.push(`${p.name} 触发【圣盾增幅】护盾+${CONFIG.PALADIN_SHIELD_BONUS}`);
+        p.shield += CONFIG.get("PALADIN_SHIELD_BONUS");
+        this.logs.push(`${p.name} 触发【圣盾增幅】护盾+${CONFIG.get("PALADIN_SHIELD_BONUS")}`);
       }
     }
     // 装备触发：宝藏(水晶+1，可临时突破上限) → 影刃(对对手造成伤害) → 守护盾(+护盾)
@@ -535,7 +532,7 @@ class CardGameEngine {
       // 烈焰之杖：附带灼烧
       if (p.equipBurnStacks > 0 && !target.negImmune) {
         target.burn += p.equipBurnStacks;
-        target.burnTurn = CONFIG.STATUS_DURATION;
+        target.burnTurn = CONFIG.get("STATUS_DURATION");
       }
       p.equipBladeTurn--;
       const name = p.equipBurnStacks > 0 ? '烈焰之杖' : '影刃';
@@ -589,9 +586,9 @@ class CardGameEngine {
 
     switch (user.character) {
       case 'berserker':
-        user.hp = Math.max(0, user.hp - CONFIG.BERSERKER_SELF_DMG);
+        user.hp = Math.max(0, user.hp - CONFIG.get("BERSERKER_SELF_DMG"));
         user.berserkerDoubleDamage = true;
-        this.logs.push(`${user.name} 释放【血怒】(耗${ch.active.cost}水晶)自扣${CONFIG.BERSERKER_SELF_DMG}血，本回合伤害翻倍`);
+        this.logs.push(`${user.name} 释放【血怒】(耗${ch.active.cost}水晶)自扣${CONFIG.get("BERSERKER_SELF_DMG")}血，本回合伤害翻倍`);
         break;
       case 'paladin':
         user.shield += 10;
@@ -603,12 +600,12 @@ class CardGameEngine {
         user.hand.splice(ci, 1);
         // 弃牌补偿回血（灼烧时除外，与治疗逻辑一致）
         const healed = user.burn === 0;
-        if (healed) user.hp = Math.min(user.maxHp, user.hp + CONFIG.WARLOCK_HEAL);
+        if (healed) user.hp = Math.min(user.maxHp, user.hp + CONFIG.get("WARLOCK_HEAL"));
         if (target.negImmune) {
-          this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶,被护罩抵挡,${healed ? '回'+CONFIG.WARLOCK_HEAL+'血' : '灼烧中回血无效'})`);
+          this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶,被护罩抵挡,${healed ? '回'+CONFIG.get("WARLOCK_HEAL")+'血' : '灼烧中回血无效'})`);
         } else {
-          target.poison += CONFIG.WARLOCK_POISON;
-          this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶)对手叠${CONFIG.WARLOCK_POISON}层中毒,${healed ? '回'+CONFIG.WARLOCK_HEAL+'血' : '灼烧中回血无效'}`);
+          target.poison += CONFIG.get("WARLOCK_POISON");
+          this.logs.push(`${user.name} 释放【诅咒】(耗${ch.active.cost}水晶)对手叠${CONFIG.get("WARLOCK_POISON")}层中毒,${healed ? '回'+CONFIG.get("WARLOCK_HEAL")+'血' : '灼烧中回血无效'}`);
         }
         break;
       }
@@ -637,19 +634,19 @@ class CardGameEngine {
         break;
       case 'tycoon': {
         const spent = user.mana || 0;
-        const dmg = CONFIG.TYCOON_BASE_DAMAGE + spent * CONFIG.TYCOON_DMG_PER_SAVE;
+        const dmg = CONFIG.get("TYCOON_BASE_DAMAGE") + spent * CONFIG.get("TYCOON_DMG_PER_SAVE");
         if (spent > 0) {
           this._dealDamage(user, target, dmg);
-          this.logs.push(`${user.name} 释放【水晶爆发】，消耗全部${spent}水晶，造成${dmg}伤害(保底${CONFIG.TYCOON_BASE_DAMAGE}+${spent}×${CONFIG.TYCOON_DMG_PER_SAVE})`);
+          this.logs.push(`${user.name} 释放【水晶爆发】，消耗全部${spent}水晶，造成${dmg}伤害(保底${CONFIG.get("TYCOON_BASE_DAMAGE")}+${spent}×${CONFIG.get("TYCOON_DMG_PER_SAVE")})`);
           user.mana = 0;
         } else {
-          this.logs.push(`${user.name} 释放【水晶爆发】（无水晶可用，保底${CONFIG.TYCOON_BASE_DAMAGE}伤害）`);
-          this._dealDamage(user, target, CONFIG.TYCOON_BASE_DAMAGE);
+          this.logs.push(`${user.name} 释放【水晶爆发】（无水晶可用，保底${CONFIG.get("TYCOON_BASE_DAMAGE")}伤害）`);
+          this._dealDamage(user, target, CONFIG.get("TYCOON_BASE_DAMAGE"));
         }
         break;
       }
       case 'undead': {
-        const dmg = CONFIG.UNDEAD_DMG, heal = CONFIG.UNDEAD_HEAL;
+        const dmg = CONFIG.get("UNDEAD_DMG"), heal = CONFIG.get("UNDEAD_HEAL");
         this._dealDamage(user, target, dmg);
         if (user.burn === 0) user.hp = Math.min(user.maxHp, user.hp + heal);
         this.logs.push(`${user.name} 释放【亡者汲取】(耗${ch.active.cost}水晶)，造成${dmg}伤回${heal}血${user.burn > 0 ? '（灼烧中回血无效）' : ''}`);

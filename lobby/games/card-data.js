@@ -32,7 +32,7 @@ const CARDS = [
   { id: 'sacrifice', name: '献祭',     type: 'sacrifice', value: 15, cost: 4, color: '#8e44ad', rarity: 'uncommon', desc: '自扣8血，对手扣15真伤' },
   { id: 'combust',   name: '烈焰',     type: 'combust',   value: 3,  cost: 5, color: '#e67e22', rarity: 'uncommon', fixedDmg: 9, desc: '造成9伤并灼烧3层' },
   { id: 'poisoncloud', name: '毒云术', type: 'poison', value: 6,  cost: 4, color: '#27ae60', rarity: 'uncommon', stacks: 4, desc: '造成6伤并中毒4层' },
-  { id: 'cleanse',   name: '净化',     type: 'cleanse',   value: 3,  cost: 4, color: '#ecf0f1', rarity: 'common', desc: '清除自身所有负面效果并恢复3点生命' },
+  { id: 'cleanse',   name: '净化',     type: 'cleanse',   value: 2,  cost: 4, color: '#ecf0f1', rarity: 'common', desc: '清除自身所有负面效果并恢复3点生命' },
   { id: 'delay_dmg', name: '火灵', type: 'summon_fire', value: 5, cost: 4, color: '#e67e22', rarity: 'rare', summonDmg: 5, summonIncr: 2, summonTurns: 3, desc: '召唤火灵，在场3回合每回合对对手造成5/7/9点递增普通伤害' },
   { id: 'execute',  name: '斩杀',     type: 'cond_kill',  value: 0,  cost: 4, color: '#c0392b', rarity: 'uncommon', hpThreshold: 15, normalDmg: 8, desc: '对手HP≤15直接斩杀，否则造成8点普通伤害' },
   { id: 'pact',      name: '命运契约', type: 'rand_pact',  value: 8,  cost: 4, color: '#9b59b6', rarity: 'uncommon', stacks: 3, desc: '回8血并随机给对手一个负面(中毒3层/灼烧3层/冻结)(赌徒双发=回16+两个负面)' },
@@ -45,7 +45,7 @@ const CARDS = [
   /* ===== 高费牌(5费+) ===== */
   { id: 'vampiric',  name: '吸血',     type: 'vampiric',  value: 12, cost: 5, color: '#c0392b', rarity: 'uncommon', desc: '造成12伤并回6血' },
   { id: 'curse',     name: '诅咒',     type: 'curse',     value: 6,  cost: 5, color: '#8e44ad', rarity: 'uncommon', desc: '对手叠6层中毒' },
-  { id: 'purge',     name: '净化火焰', type: 'cleanse_burn', value: 8, cost: 5, color: '#e74c3c', rarity: 'rare', drawCount: 1, desc: '清自身负面+回8血+抽1张，并清除对面所有随从' },
+  { id: 'purge',     name: '净化火焰', type: 'cleanse_burn', value: 8, cost: 5, color: '#e74c3c', rarity: 'uncommon', drawCount: 1, desc: '清自身负面+回8血+抽1张，并清除对面所有随从' },
   { id: 'ritual',    name: '召唤仪式', type: 'rand_summon', value: 0, cost: 5, color: '#8e44ad', rarity: 'rare', desc: '随机召唤一个随从(火灵/蜘蛛/壁垒)(赌徒召唤两个)' },
   { id: 'bladewraith', name: '剑魔', type: 'summon_fire', value: 7, cost: 5, color: '#95a5a6', rarity: 'rare', summonDmg: 7, summonIncr: 0, summonTurns: 3, desc: '召唤剑魔，在场3回合每回合造成7点普通伤害' },
   { id: 'deathtouch', name: '死亡之触', type: 'damage', value: 18, cost: 6, color: '#8e44ad', rarity: 'rare', summonHeal: 8, desc: '造成18点普通伤害，若对手有随从则回8血' },
@@ -64,4 +64,62 @@ const COIN_TEMPLATE = {
   color: '#f1c40f', desc: '本回合水晶+1'
 };
 
-module.exports = { CARDS, COIN_TEMPLATE };
+// ===== 动态覆盖(管理后台改数值存数据库) =====
+const GAME_TYPE = 'card';
+let _overrides = {};  // { cardId: { field: value } }
+
+// 可调数值字段白名单(只允许改这些，防止改 type/id 等结构性字段)
+const TUNABLE_FIELDS = [
+  'value', 'cost', 'stacks', 'hpThreshold', 'lowDmg', 'normalDmg',
+  'summonDmg', 'summonIncr', 'summonTurns', 'summonHeal', 'summonStacks',
+  'equipDmg', 'equipTurns', 'equipShield', 'equipMana', 'equipBurnStacks',
+  'fixedDmg', 'burnStacks', 'bonusDmg', 'heal', 'drawCount'
+];
+
+// 从数据库加载覆盖值
+function loadFromDB(db) {
+  if (!db) return;
+  try {
+    _overrides = db.getAllConfig(GAME_TYPE + '_cards') || {};
+  } catch (e) { _overrides = {}; }
+}
+
+// 获取一张卡(合并默认值+覆盖值)
+function getCard(id) {
+  const base = CARDS.find(c => c.id === id);
+  if (!base) return null;
+  const override = _overrides[id];
+  return override ? { ...base, ...override } : { ...base };
+}
+
+// 获取所有卡(合并后)
+function getAllCards() {
+  return CARDS.map(c => _overrides[c.id] ? { ...c, ..._overrides[c.id] } : { ...c });
+}
+
+// 保存单张卡的数值覆盖
+function saveCard(db, id, fields) {
+  if (!db) return;
+  // 只保留白名单字段
+  const clean = {};
+  for (const k of TUNABLE_FIELDS) { if (k in fields) clean[k] = fields[k]; }
+  _overrides[id] = { ...(_overrides[id] || {}), ...clean };
+  db.setConfig(GAME_TYPE + '_cards', id, _overrides[id]);
+}
+
+// 恢复单张卡默认值
+function resetCard(db, id) {
+  if (!db) return;
+  delete _overrides[id];
+  db.deleteConfig(GAME_TYPE + '_cards', id);
+}
+
+// 获取可调字段列表(供后台展示)
+function getTunableFields() {
+  return [...TUNABLE_FIELDS];
+}
+
+module.exports = {
+  CARDS, COIN_TEMPLATE,
+  loadFromDB, getCard, getAllCards, saveCard, resetCard, getTunableFields
+};

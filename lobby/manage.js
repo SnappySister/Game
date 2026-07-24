@@ -1,10 +1,12 @@
-/* 管理脚本 - VIP/战绩管理
+/* 管理脚本 - VIP/战绩/管理员管理
  * 用法：
  *   node manage.js vip <用户名> <天数>     开通/续费VIP
  *   node manage.js vipstatus <用户名>      查VIP状态
  *   node manage.js unvip <用户名>          取消VIP
  *   node manage.js list                    列出所有VIP用户
  *   node manage.js resetstats              清空所有战绩和排行榜(elo归1000)
+ *   node manage.js admin <用户名>          设置管理员
+ *   node manage.js unadmin <用户名>        取消管理员
  */
 const db = require('./db');
 
@@ -17,6 +19,8 @@ function help() {
   console.log('  node manage.js unvip <用户名>          取消VIP');
   console.log('  node manage.js list                    列出所有VIP用户');
   console.log('  node manage.js resetstats              清空所有战绩和排行榜');
+  console.log('  node manage.js admin <用户名>          设置管理员');
+  console.log('  node manage.js unadmin <用户名>        取消管理员');
 }
 
 async function main() {
@@ -72,6 +76,20 @@ async function main() {
     console.log(`✓ 已清空 ${records} 条战绩记录`);
     console.log('  所有账号 elo 重置为 1000，胜负场归 0');
     console.log('  排行榜已清空');
+  } else if (cmd === 'admin') {
+    const [username] = args;
+    if (!username) { help(); process.exit(1); }
+    const acc = db.getAccountByUsername(username);
+    if (!acc) { console.log(`用户 "${username}" 不存在`); process.exit(1); }
+    db.setAdmin(acc.id, true);
+    console.log(`✓ ${username} (${acc.nickname}) 已设为管理员`);
+  } else if (cmd === 'unadmin') {
+    const [username] = args;
+    if (!username) { help(); process.exit(1); }
+    const acc = db.getAccountByUsername(username);
+    if (!acc) { console.log(`用户 "${username}" 不存在`); process.exit(1); }
+    db.setAdmin(acc.id, false);
+    console.log(`✓ ${username} (${acc.nickname}) 已取消管理员`);
   } else {
     help();
   }

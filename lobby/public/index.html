@@ -55,6 +55,7 @@
       <button id="btn-my-stats" class="btn-account" style="display:none">战绩</button>
       <button id="btn-leaderboard" class="btn-account">排行</button>
       <button id="btn-appearance" class="btn-account" style="display:none">外观</button>
+      <button id="btn-admin" class="btn-account" style="display:none;background:#e67e22">管理</button>
       <button id="btn-change-nickname" class="btn-account" style="display:none">改昵称</button>
       <button id="btn-logout" class="btn-account btn-logout">退出</button>
       <button id="btn-changelog" class="btn-changelog">📢</button>
@@ -221,6 +222,19 @@
       <p style="margin-top:12px;text-align:center;color:#7f8c8d;font-size:12px">预览：<span id="appearance-preview"></span></p>
     </div>
     <button id="close-appearance">关闭</button>
+  </div>
+</div>
+
+<!-- 管理后台弹窗 -->
+<div id="admin-modal" class="modal" style="display:none">
+  <div class="modal-box rule-box" style="max-width:600px">
+    <h2>⚙️ 管理后台</h2>
+    <div class="lb-tabs">
+      <button class="admin-tab active" data-tab="config">全局参数</button>
+      <button class="admin-tab" data-tab="cards">卡牌数据</button>
+    </div>
+    <div id="admin-content" class="rule-content"></div>
+    <button id="close-admin">关闭</button>
   </div>
 </div>
 
@@ -754,7 +768,7 @@
 
 <script>
 /* ==================== 全局 ==================== */
-let ws = null, myName = '', myUserId = null, myToken = null, myIsGuest = true, myTitle = null, myNameColor = null, myVipActive = false, currentView = 'login', currentRoomId = null, currentGameType = '';
+let ws = null, myName = '', myUserId = null, myToken = null, myIsGuest = true, myTitle = null, myNameColor = null, myVipActive = false, myIsAdmin = false, currentView = 'login', currentRoomId = null, currentGameType = '';
 
 // 登录态持久化：存 name+userId+token+isGuest+时间戳到 localStorage，刷新页面可自动重连
 // 注册用户 token 长期有效(7天)，游客仅 130 秒(对齐服务端宽限期)
@@ -996,6 +1010,7 @@ function handleMessage(d) {
     myTitle = d.title || null;
     myNameColor = d.nameColor || null;
     myVipActive = !!d.vipActive;
+    myIsAdmin = !!d.isAdmin;
     saveSession();
     updateAccountInfo();
     showView('#view-lobby');
@@ -1042,6 +1057,24 @@ function handleMessage(d) {
   if (d.event === 'vipLogin') {
     // VIP上线广播：大厅顶部弹toast
     showVipToast(d.name);
+  }
+  if (d.event === 'adminConfig') {
+    adminConfig = d.config || {};
+    adminDefaults = d.defaults || {};
+    renderAdminConfig();
+  }
+  if (d.event === 'adminConfigSaved') {
+    // 单个配置保存成功，刷新列表
+    send({ type: 'adminGetConfig' });
+  }
+  if (d.event === 'adminCards') {
+    adminCards = d.cards || [];
+    adminTunableFields = d.tunableFields || [];
+    if (adminTab === 'cards') renderAdminCards();
+  }
+  if (d.event === 'adminCardSaved') {
+    // 卡牌保存成功，刷新列表
+    send({ type: 'adminGetCards' });
   }
   if (d.event === 'lobbyState') {
     $('#lobby-online-count').textContent = d.online.length;
@@ -1527,6 +1560,8 @@ function updateAccountInfo() {
   if (statsBtn) statsBtn.style.display = myIsGuest ? 'none' : '';
   const appBtn = $('#btn-appearance');
   if (appBtn) appBtn.style.display = myIsGuest ? 'none' : '';  // 游客不能改外观
+  const adminBtn = $('#btn-admin');
+  if (adminBtn) adminBtn.style.display = myIsAdmin ? '' : 'none';  // 仅管理员
 }
 // 改昵称
 $('#btn-change-nickname').onclick = () => {
@@ -1665,6 +1700,104 @@ $('#appearance-clear').onclick = () => {
   updateAppearancePreview();
 };
 $('#close-appearance').onclick = () => { $('#appearance-modal').style.display = 'none'; };
+
+/* ==================== 管理后台 ==================== */
+const CONFIG_LABELS = {
+  MAX_MANA: '水晶上限', START_HAND: '开局抽牌数', TURN_DRAW: '每回合抽牌数', START_HP: '初始血量',
+  COST_WEIGHT_BASE: '费用加权基数', BERSERKER_HP_RATIO: '狂战士触发血量比', BERSERKER_BONUS: '狂战士增伤',
+  BERSERKER_SELF_DMG: '狂战士自扣血', CRYO_VULN: '寒冰法师易伤', GUARDIAN_REDUCE: '壁垒守卫减伤比例',
+  PALADIN_SHIELD_BONUS: '圣骑士叠盾', WARLOCK_POISON: '术士叠毒', WARLOCK_HEAL: '术士回血',
+  GAMBLER_BACKFIRE: '赌徒反噬概率', GAMBLER_BACKFIRE_DMG: '赌徒反噬伤害', TYCOON_SAVE_THRESHOLD: '财阀囤水晶阈值',
+  TYCOON_DMG_PER_SAVE: '财阀每水晶伤害', TYCOON_BASE_DAMAGE: '财阀保底伤害', UNDEAD_DMG: '不死族伤害',
+  UNDEAD_HEAL: '不死族回血', STATUS_DURATION: '灼烧持续回合'
+};
+let adminConfig = {}, adminDefaults = {};
+function renderAdminConfig() {
+  const box = $('#admin-content');
+  let html = '<div class="admin-config-list">';
+  for (const [key, label] of Object.entries(CONFIG_LABELS)) {
+    const val = adminConfig[key];
+    const isDefault = JSON.stringify(val) === JSON.stringify(adminDefaults[key]);
+    const valStr = typeof val === 'object' ? JSON.stringify(val) : val;
+    html += `<div class="admin-config-row${isDefault ? '' : ' modified'}">
+      <span class="admin-label">${label}</span>
+      <input class="admin-input" data-key="${key}" value="${valStr}" />
+      <button class="admin-save" data-key="${key}">保存</button>
+      ${isDefault ? '' : `<button class="admin-reset" data-key="${key}">默认</button>`}
+    </div>`;
+  }
+  html += '</div>';
+  html += '<div style="margin-top:12px;text-align:center"><button id="admin-reset-all" style="background:#e74c3c">全部恢复默认</button></div>';
+  box.innerHTML = html;
+  // 绑定保存按钮
+  box.querySelectorAll('.admin-save').forEach(b => {
+    b.onclick = () => {
+      const key = b.dataset.key;
+      const input = box.querySelector(`.admin-input[data-key="${key}"]`);
+      let val = input.value.trim();
+      // 尝试解析数字/布尔/对象
+      if (val === 'true') val = true;
+      else if (val === 'false') val = false;
+      else if (!isNaN(val) && val !== '') val = Number(val);
+      else { try { val = JSON.parse(val); } catch (e) {} }
+      send({ type: 'adminUpdateConfig', key, value: val });
+    };
+  });
+  box.querySelectorAll('.admin-reset').forEach(b => {
+    b.onclick = () => send({ type: 'adminResetConfig', key: b.dataset.key });
+  });
+  const resetAll = $('#admin-reset-all');
+  if (resetAll) resetAll.onclick = () => { if (confirm('确定全部恢复默认？')) send({ type: 'adminResetConfig' }); };
+}
+let adminTab = 'config';
+let adminCards = [], adminTunableFields = [];
+function renderAdminCards() {
+  const box = $('#admin-content');
+  let html = '<div class="admin-card-list">';
+  adminCards.forEach(card => {
+    const fields = adminTunableFields.filter(f => f in card && f !== 'value' || (f === 'value' && 'value' in card));
+    const fieldInputs = adminTunableFields.filter(f => f in card).map(f =>
+      `<label class="admin-card-field"><span>${f}</span><input class="admin-card-input" data-id="${card.id}" data-field="${f}" value="${card[f]}" /></label>`
+    ).join('');
+    html += `<div class="admin-card-row">
+      <div class="admin-card-name">${card.name} <small>(${card.cost}费 ${card.type})</small></div>
+      <div class="admin-card-fields">${fieldInputs}</div>
+      <button class="admin-card-save" data-id="${card.id}">保存</button>
+    </div>`;
+  });
+  html += '</div>';
+  box.innerHTML = html;
+  box.querySelectorAll('.admin-card-save').forEach(b => {
+    b.onclick = () => {
+      const id = b.dataset.id;
+      const fields = {};
+      box.querySelectorAll(`.admin-card-input[data-id="${id}"]`).forEach(inp => {
+        let val = inp.value.trim();
+        if (!isNaN(val) && val !== '') val = Number(val);
+        fields[inp.dataset.field] = val;
+      });
+      send({ type: 'adminUpdateCard', id, fields });
+    };
+  });
+}
+function switchAdminTab(tab) {
+  adminTab = tab;
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  if (tab === 'config') {
+    send({ type: 'adminGetConfig' });
+  } else if (tab === 'cards') {
+    send({ type: 'adminGetCards' });
+  }
+}
+document.querySelectorAll('.admin-tab').forEach(t => {
+  t.onclick = () => switchAdminTab(t.dataset.tab);
+});
+$('#btn-admin').onclick = () => {
+  adminTab = 'config';
+  send({ type: 'adminGetConfig' });
+  $('#admin-modal').style.display = 'flex';
+};
+$('#close-admin').onclick = () => { $('#admin-modal').style.display = 'none'; };
 
 $('#btn-monopoly-rule')?.addEventListener('click', () => { $('#monopoly-rule-modal').style.display = 'flex'; });
 $('#btn-monopoly-trade')?.addEventListener('click', () => { openMonopolyTrade(); });

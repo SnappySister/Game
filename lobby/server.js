@@ -6,10 +6,16 @@ const CardGameEngine = require('./games/card-game');
 const TexasHoldemEngine = require('./games/texas-holdem');
 const SichuanMahjongEngine = require('./games/sichuan-mahjong');
 const MonopolyEngine = require('./games/monopoly');
+const cardConfig = require('./games/card-config');
+const cardData = require('./games/card-data');
 const { VERSION } = require('./public/version');
 const config = require('./config');
 const db = require('./db');
 const bcrypt = require('bcrypt');
+
+// 启动时从数据库加载卡牌游戏配置覆盖默认值
+cardConfig.loadFromDB(db);
+cardData.loadFromDB(db);
 
 const PORT = config.PORT;
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript' };
@@ -244,7 +250,7 @@ wss.on('connection', (ws, req) => {
           const playerIdx = room.gameInstance.players.findIndex(p => p.id === pr.user.id);
           pr.user.state = 'playing';
           users.set(ws, pr.user);
-          send(ws, { event: 'named', name: pr.user.name, userId: pr.user.id, token: pr.user.token || null, isGuest: !!pr.user.isGuest, title: pr.user.title || null, nameColor: pr.user.nameColor || null, vipActive: !!pr.user.vipActive, vipLevel: pr.user.vipLevel || 0 });
+          send(ws, { event: 'named', name: pr.user.name, userId: pr.user.id, token: pr.user.token || null, isGuest: !!pr.user.isGuest, title: pr.user.title || null, nameColor: pr.user.nameColor || null, vipActive: !!pr.user.vipActive, vipLevel: pr.user.vipLevel || 0, isAdmin: !!pr.user.isAdmin });
           send(ws, { event: 'reconnected', roomId: room.id, gameType: room.gameType });
           send(ws, buildRoomState(room));
           send(ws, { event: 'gameStarted', roomId: room.id, gameType: room.gameType });
@@ -274,7 +280,7 @@ wss.on('connection', (ws, req) => {
           kickExistingSessions(acc.id, ws);  // 后登踢先登(极端情况)
           const userObj = makeUser(acc, msg.token);
           users.set(ws, userObj);
-          send(ws, { event: 'named', name: acc.nickname, userId: acc.id, token: msg.token, isGuest: false, title: userObj.title, nameColor: userObj.nameColor, vipActive: userObj.vipActive, vipLevel: userObj.vipLevel });
+          send(ws, { event: 'named', name: acc.nickname, userId: acc.id, token: msg.token, isGuest: false, title: userObj.title, nameColor: userObj.nameColor, vipActive: userObj.vipActive, vipLevel: userObj.vipLevel, isAdmin: !!userObj.isAdmin });
           send(ws, buildLobbyState());
           send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
           broadcastLobby(buildLobbyState());
@@ -308,7 +314,7 @@ wss.on('connection', (ws, req) => {
           kickExistingSessions(acc.id, ws);  // 后登踢先登(极少见，刚注册就重复)
           const userObj = makeUser({ ...acc, title: null, name_color: null }, token);
           users.set(ws, userObj);
-          send(ws, { event: 'named', name: nickname, userId: acc.id, token, isGuest: false, title: null, nameColor: null, vipActive: false, vipLevel: 0 });
+          send(ws, { event: 'named', name: nickname, userId: acc.id, token, isGuest: false, title: null, nameColor: null, vipActive: false, vipLevel: 0, isAdmin: false });
           send(ws, buildLobbyState());
           send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
           broadcastLobby(buildLobbyState());
@@ -329,7 +335,7 @@ wss.on('connection', (ws, req) => {
         kickExistingSessions(acc.id, ws);  // 后登踢先登
         const userObj = makeUser(acc, token);
         users.set(ws, userObj);
-        send(ws, { event: 'named', name: acc.nickname, userId: acc.id, token, isGuest: false, title: userObj.title, nameColor: userObj.nameColor, vipActive: userObj.vipActive, vipLevel: userObj.vipLevel });
+        send(ws, { event: 'named', name: acc.nickname, userId: acc.id, token, isGuest: false, title: userObj.title, nameColor: userObj.nameColor, vipActive: userObj.vipActive, vipLevel: userObj.vipLevel, isAdmin: !!userObj.isAdmin });
         send(ws, buildLobbyState());
         send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
         broadcastLobby(buildLobbyState());
@@ -346,7 +352,7 @@ wss.on('connection', (ws, req) => {
       const id = nextUserId++;
       const userObj = { id, name, state: 'lobby', roomId: null, gameIndex: -1, isGuest: true, accountId: null, token: null, title: null, nameColor: null };
       users.set(ws, userObj);
-      send(ws, { event: 'named', name: name, userId: id, token: null, isGuest: true, title: null, nameColor: null, vipActive: false, vipLevel: 0 });
+      send(ws, { event: 'named', name: name, userId: id, token: null, isGuest: true, title: null, nameColor: null, vipActive: false, vipLevel: 0, isAdmin: false });
       send(ws, buildLobbyState());
       send(ws, { event: 'chatHistory', scope: 'lobby', messages: lobbyChat });
       broadcastLobby(buildLobbyState());
@@ -523,6 +529,60 @@ wss.on('connection', (ws, req) => {
       const scope = ['total', 'mahjong', 'card', 'poker', 'monopoly', 'weekly', 'monthly'].includes(msg.scope) ? msg.scope : 'total';
       const list = db.getLeaderboard(scope, 50);
       send(ws, { event: 'leaderboard', scope, list });
+      return;
+    }
+
+    /* ---------- 管理后台(仅管理员) ---------- */
+    if (msg.type === 'adminGetConfig') {
+      if (!user.isAdmin) { send(ws, { event: 'error', msg: '无权限' }); return; }
+      send(ws, { event: 'adminConfig', config: cardConfig.getAllConfig(), defaults: cardConfig.getDefaults() });
+      return;
+    }
+    if (msg.type === 'adminUpdateConfig') {
+      if (!user.isAdmin) { send(ws, { event: 'error', msg: '无权限' }); return; }
+      const { key, value } = msg;
+      if (!key) { send(ws, { event: 'error', msg: '缺少参数' }); return; }
+      cardConfig.saveConfig(db, key, value);
+      log.info(`管理员 ${user.name} 修改卡牌配置 ${key}=${JSON.stringify(value)}`);
+      send(ws, { event: 'adminConfigSaved', key, value });
+      return;
+    }
+    if (msg.type === 'adminResetConfig') {
+      if (!user.isAdmin) { send(ws, { event: 'error', msg: '无权限' }); return; }
+      const key = msg.key;
+      if (key) {
+        cardConfig.resetConfig(db, key);
+        log.info(`管理员 ${user.name} 恢复默认 ${key}`);
+      } else {
+        cardConfig.resetAll(db);
+        log.info(`管理员 ${user.name} 恢复全部默认`);
+      }
+      send(ws, { event: 'adminConfig', config: cardConfig.getAllConfig(), defaults: cardConfig.getDefaults() });
+      return;
+    }
+
+    /* ---------- 卡牌数据管理(仅管理员) ---------- */
+    if (msg.type === 'adminGetCards') {
+      if (!user.isAdmin) { send(ws, { event: 'error', msg: '无权限' }); return; }
+      send(ws, { event: 'adminCards', cards: cardData.getAllCards(), tunableFields: cardData.getTunableFields() });
+      return;
+    }
+    if (msg.type === 'adminUpdateCard') {
+      if (!user.isAdmin) { send(ws, { event: 'error', msg: '无权限' }); return; }
+      const { id, fields } = msg;
+      if (!id || !fields) { send(ws, { event: 'error', msg: '缺少参数' }); return; }
+      cardData.saveCard(db, id, fields);
+      log.info(`管理员 ${user.name} 修改卡牌 ${id}: ${JSON.stringify(fields)}`);
+      send(ws, { event: 'adminCardSaved', id });
+      return;
+    }
+    if (msg.type === 'adminResetCard') {
+      if (!user.isAdmin) { send(ws, { event: 'error', msg: '无权限' }); return; }
+      const { id } = msg;
+      if (!id) { send(ws, { event: 'error', msg: '缺少参数' }); return; }
+      cardData.resetCard(db, id);
+      log.info(`管理员 ${user.name} 恢复卡牌 ${id} 默认值`);
+      send(ws, { event: 'adminCards', cards: cardData.getAllCards(), tunableFields: cardData.getTunableFields() });
       return;
     }
 
@@ -972,7 +1032,8 @@ function makeUser(acc, token) {
     id: acc.id, name: acc.nickname, state: 'lobby', roomId: null, gameIndex: -1,
     isGuest: false, accountId: acc.id, token,
     title: acc.title || null, nameColor: acc.name_color || null,
-    vipLevel: vip.level, vipExpire: vip.expire, vipActive: vip.active
+    vipLevel: vip.level, vipExpire: vip.expire, vipActive: vip.active,
+    isAdmin: !!(acc.is_admin)
   };
 }
 

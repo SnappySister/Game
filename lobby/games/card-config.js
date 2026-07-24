@@ -1,31 +1,98 @@
-/* 卡牌游戏全局配置 - 所有逻辑无关的游戏规则参数集中在此，便于平衡性调整 */
+/* 卡牌游戏全局配置 - 默认值 + 数据库动态覆盖
+ * 管理后台修改数值存数据库，loadFromDB() 加载覆盖，get() 动态读取。
+ * 默认值始终保留，删除数据库配置即恢复默认。
+ */
 
-module.exports = {
+// 默认值(管理后台"恢复默认"时回到这些值)
+const DEFAULTS = {
   /* 基础规则 */
-  MAX_MANA: 10,              // 水晶上限
-  START_HAND: 4,             // 开局抽牌数
-  TURN_DRAW: 3,               // 每回合抽牌数
-  START_HP: 100,              // 初始血量
+  MAX_MANA: 10,
+  START_HAND: 4,
+  TURN_DRAW: 3,
+  START_HP: 100,
 
   /* 抽牌概率 */
-  COST_WEIGHT_BASE: 14,       // 费用加权曲线基数（权重 = max(1, COST_WEIGHT_BASE - cost)）
-  RARITY_WEIGHTS: { common: 60, uncommon: 30, rare: 10 }, // 分层抽牌稀有度权重
+  COST_WEIGHT_BASE: 14,
+  RARITY_WEIGHTS: { common: 60, uncommon: 30, rare: 10 },
 
   /* 英雄/卡牌效果参数 */
-  BERSERKER_HP_RATIO: 0.4,    // 狂战士被动触发血量比（HP≤40%时增伤）
-  BERSERKER_BONUS: 3,         // 狂战士被动增伤量
-  BERSERKER_SELF_DMG: 3,      // 狂战士主动血怒自扣血量
-  CRYO_VULN: 3,               // 寒冰法师冻结易伤量（对手冻结时伤害+3）
-  GUARDIAN_REDUCE: 0.5,       // 壁垒守卫减伤比例
-  PALADIN_SHIELD_BONUS: 3,    // 圣骑士被动叠盾量（已有护盾时额外+盾）
-  WARLOCK_POISON: 7,          // 术士诅咒叠毒层数
-  WARLOCK_HEAL: 5,            // 术士诅咒回血量
-  GAMBLER_BACKFIRE: 0.2,      // 赌徒随机牌反噬概率(20%)
-  GAMBLER_BACKFIRE_DMG: 5,    // 赌徒反噬无负面牌时的扣血量
-  TYCOON_SAVE_THRESHOLD: 0,  // 财阀被动囤水晶阈值(0=每回合结束剩余水晶全存)
-  TYCOON_DMG_PER_SAVE: 2,    // 财阀主动每点水晶造成伤害
-  TYCOON_BASE_DAMAGE: 10,    // 财阀主动保底伤害(水晶少时也有用)
-  UNDEAD_DMG: 6,             // 不死族主动亡者汲取伤害
-  UNDEAD_HEAL: 8,            // 不死族主动亡者汲取回血
-  STATUS_DURATION: 3         // 灼烧持续回合数
+  BERSERKER_HP_RATIO: 0.4,
+  BERSERKER_BONUS: 3,
+  BERSERKER_SELF_DMG: 3,
+  CRYO_VULN: 3,
+  GUARDIAN_REDUCE: 0.5,
+  PALADIN_SHIELD_BONUS: 3,
+  WARLOCK_POISON: 7,
+  WARLOCK_HEAL: 5,
+  GAMBLER_BACKFIRE: 0.2,
+  GAMBLER_BACKFIRE_DMG: 5,
+  TYCOON_SAVE_THRESHOLD: 0,
+  TYCOON_DMG_PER_SAVE: 2,
+  TYCOON_BASE_DAMAGE: 10,
+  UNDEAD_DMG: 6,
+  UNDEAD_HEAL: 8,
+  STATUS_DURATION: 3
+};
+
+// 数据库覆盖值(管理后台修改后存这里)
+let _overrides = {};
+
+const GAME_TYPE = 'card';
+
+// 动态读取：优先用数据库覆盖值，无则用默认值
+function get(key) {
+  if (key in _overrides) return _overrides[key];
+  return DEFAULTS[key];
+}
+
+// 从数据库加载覆盖值
+function loadFromDB(db) {
+  if (!db) return;
+  try {
+    _overrides = db.getAllConfig(GAME_TYPE) || {};
+  } catch (e) {
+    _overrides = {};  // 数据库未就绪时用默认值
+  }
+}
+
+// 返回所有配置(默认值+覆盖值)，供管理后台展示
+function getAllConfig() {
+  return { ...DEFAULTS, ..._overrides };
+}
+
+// 返回默认值，供"恢复默认"
+function getDefaults() {
+  return { ...DEFAULTS };
+}
+
+// 管理后台保存后调用：更新单个配置到数据库 + 刷新覆盖值
+function saveConfig(db, key, value) {
+  if (!db) return;
+  db.setConfig(GAME_TYPE, key, value);
+  _overrides[key] = value;
+}
+
+// 恢复单个配置为默认值
+function resetConfig(db, key) {
+  if (!db) return;
+  db.deleteConfig(GAME_TYPE, key);
+  delete _overrides[key];
+}
+
+// 恢复全部为默认值
+function resetAll(db) {
+  if (!db) return;
+  db.clearConfig(GAME_TYPE);
+  _overrides = {};
+}
+
+module.exports = {
+  get,
+  loadFromDB,
+  getAllConfig,
+  getDefaults,
+  saveConfig,
+  resetConfig,
+  resetAll,
+  DEFAULTS
 };

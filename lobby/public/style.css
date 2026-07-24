@@ -792,6 +792,30 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   display: none;
 }
 
+/* 管理后台 */
+.admin-config-list { max-height: 400px; overflow-y: auto; }
+.admin-config-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #0f3460; }
+.admin-config-row.modified { background: rgba(231,76,60,0.1); }
+.admin-label { flex: 1; font-size: 13px; color: #ddd; }
+.admin-input { width: 100px; padding: 4px 8px; background: #0f172a; color: #f1c40f; border: 1px solid #555; border-radius: 4px; font-size: 13px; }
+.admin-save { padding: 4px 10px; background: #27ae60; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; margin: 0; }
+.admin-save:hover { background: #2ecc71; }
+.admin-reset { padding: 4px 10px; background: #e74c3c; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; margin: 0; }
+.admin-reset:hover { background: #c0392b; }
+
+/* 管理后台 - 卡牌数据 */
+.admin-card-list { max-height: 450px; overflow-y: auto; }
+.admin-card-row { padding: 8px 4px; border-bottom: 1px solid #0f3460; }
+.admin-card-name { font-size: 13px; color: #f1c40f; font-weight: bold; margin-bottom: 4px; }
+.admin-card-name small { color: #7f8c8d; font-weight: normal; }
+.admin-card-fields { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.admin-card-field { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #aaa; }
+.admin-card-field input { width: 50px; padding: 3px 6px; background: #0f172a; color: #f1c40f; border: 1px solid #555; border-radius: 4px; font-size: 12px; }
+.admin-card-save { padding: 4px 10px; background: #27ae60; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; margin: 0; }
+.admin-card-save:hover { background: #2ecc71; }
+.admin-tab { padding: 5px 14px; background: #2c3e50; color: #aaa; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; margin: 0; }
+.admin-tab.active { background: #e67e22; color: #fff; }
+
 /* ===== 更新公告 ===== */
 .changelog-version { margin-bottom: 16px; }
 .changelog-title { font-size: 16px; color: #f1c40f; font-weight: bold; margin-bottom: 6px; }
