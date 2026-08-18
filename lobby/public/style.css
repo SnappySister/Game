@@ -1061,6 +1061,32 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   .card-desc { font-size: 9px; }
   .hand { gap: 8px; padding: 6px 0 12px; min-height: 120px; }
   .log-box { font-size: 12px; padding: 6px; max-height: 90px; }
+
+  /* 登录页账号表单 */
+  #login-form input, #guest-form input { font-size: 16px; padding: 12px; }
+  .login-links { font-size: 12px; }
+
+  /* 大厅顶栏：按钮多时允许换行+缩小 */
+  .lobby-info { flex-wrap: wrap; gap: 4px; }
+  .btn-account, .btn-changelog { padding: 4px 8px; font-size: 11px; margin-right: 4px; }
+  .account-info { font-size: 12px; }
+
+  /* 弹窗(战绩/排行/外观/管理后台) */
+  .stats-summary { gap: 8px; padding: 8px; }
+  .stats-summary b { font-size: 14px; }
+  .stats-record { font-size: 11px; gap: 8px; }
+  .lb-tabs { gap: 2px; }
+  .lb-tab { padding: 4px 8px; font-size: 11px; }
+  .lb-row { font-size: 12px; gap: 6px; padding: 4px 2px; }
+  .lb-elo { width: 70px; font-size: 11px; }
+  .lb-detail { width: 90px; font-size: 10px; }
+  .color-swatch { width: 28px; height: 28px; }
+  .admin-config-row { flex-wrap: wrap; gap: 4px; }
+  .admin-label { flex: 1 1 60%; font-size: 12px; }
+  .admin-input { width: 80px; font-size: 12px; }
+  .admin-card-fields { gap: 4px; }
+  .admin-card-field input { width: 45px; font-size: 11px; }
+  .admin-tab { padding: 4px 10px; font-size: 12px; }
 }
 
 /* ===== 小屏手机额外优化 ===== */
@@ -1094,6 +1120,17 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   #game-top-bar { gap: 4px; }
   #btn-game-rule, #btn-game-chat, #btn-leave-game { padding: 5px 7px; font-size: 10px; }
   .log-box { max-height: 76px; }
+
+  /* 极小屏弹窗进一步缩小 */
+  .stats-summary { gap: 6px; padding: 6px; }
+  .stats-summary b { font-size: 13px; }
+  .lb-tab { padding: 3px 6px; font-size: 10px; }
+  .lb-row { font-size: 11px; gap: 4px; }
+  .lb-elo { width: 60px; }
+  .lb-detail { width: 80px; }
+  .admin-input { width: 70px; }
+  .color-swatch { width: 24px; height: 24px; }
+  .vip-toast { font-size: 12px; padding: 8px 16px; }
 }
 
 /* ==================== 四川麻将 ==================== */
@@ -1536,6 +1573,22 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   .mj-meld-tile { width: 16px; height: 24px; font-size: 11px; }
   .mj-back-mini { width: 16px; height: 24px; margin-left: -8px; }
   .mj-back-count { font-size: 10px; top: -8px; }
+  /* 顶部信息栏紧凑 */
+  #mahjong-top-bar { padding: 4px 6px; }
+  .mahjong-top-info { gap: 4px; flex-wrap: wrap; }
+  .mahjong-self-info { font-size: 11px; padding: 3px 8px; }
+  .mahjong-dingque-tip { font-size: 11px; padding: 3px 8px; }
+  #mahjong-status { font-size: 12px; }
+  .mahjong-top-btns button { padding: 4px 8px; font-size: 11px; margin-left: 3px; }
+  /* 牌河行紧凑 */
+  #mahjong-discards { max-height: 100px; gap: 3px; }
+  .mj-discard-row { min-height: 28px; gap: 3px; }
+  .mj-discard-name { width: 28px; font-size: 10px; }
+  .mj-discard-tiles { gap: 2px; }
+  /* 自己手牌区紧凑 */
+  #mahjong-self-hand { gap: 4px; padding: 4px; }
+  #mahjong-self-melds { padding: 4px 8px; gap: 6px; }
+  #mahjong-ting-hint { font-size: 12px; padding: 4px 8px; }
 }
 @media (max-width: 480px) {
   #mahjong-desk { grid-template-columns: 60px 1fr 60px; gap: 2px; padding: 2px; }
@@ -1547,6 +1600,14 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   .mj-back-mini { width: 14px; height: 22px; margin-left: -7px; }
   .mj-seat-info { font-size: 10px; }
   .mj-seat-detail { font-size: 9px; }
+  /* 极小屏进一步缩小 */
+  .mj-hand-tile { width: 26px; height: 36px; }
+  .mj-tile { width: 20px; height: 28px; }
+  #mahjong-discards { max-height: 80px; }
+  .mj-discard-name { width: 24px; font-size: 9px; }
+  .mahjong-self-info { font-size: 10px; }
+  #mahjong-status { font-size: 11px; }
+  .mahjong-top-btns button { padding: 3px 6px; font-size: 10px; }
 }
 
 /* ==================== 大富翁 ==================== */
@@ -1725,6 +1786,10 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   .cell-name { font-size: 8px; }
   .cell-price, .cell-owner { font-size: 7px; }
   .cell-token { font-size: 11px; }
+  .mono-actions .poker-btn { padding: 6px 8px; font-size: 12px; }
+  .mp-name { font-size: 11px; }
+  .mp-stats { font-size: 9px; gap: 6px; }
+  #monopoly-sidebar { max-height: 42vh; }
 }
 
 /* ============================================================================
@@ -1788,4 +1853,18 @@ html, body { height: 100%; background: #1a1a2e; color: #eee; font-family: "Micro
   .cell-name { font-size: 9px; }
   .cell-price, .cell-owner { font-size: 7px; }
   .cell-token { font-size: 10px; }
+
+  /* ===== 横屏通用：登录页/弹窗/大厅 ===== */
+  .login-box { padding: 12px 16px; }
+  .login-box h1 { font-size: 18px; }
+  #login-form input, #guest-form input { font-size: 14px; padding: 8px; }
+  .login-changelog { max-height: 24vh; }
+  .lobby-info { flex-wrap: wrap; gap: 3px; }
+  .btn-account, .btn-changelog { padding: 3px 6px; font-size: 10px; margin-right: 3px; }
+  .modal-box { padding: 14px; max-height: 85vh; }
+  .stats-summary { gap: 6px; padding: 6px; }
+  .lb-tab { padding: 3px 6px; font-size: 10px; }
+  .lb-row { font-size: 11px; gap: 4px; }
+  .admin-config-row { flex-wrap: wrap; gap: 3px; }
+  .admin-input { width: 70px; }
 }
